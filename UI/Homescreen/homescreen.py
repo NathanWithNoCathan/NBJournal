@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 
 from UI.Logs.logs import LogsWindow  # type: ignore[import]
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
-
+from csv_loader import load_splash_texts
 
 class HomeScreen(QMainWindow):
     def __init__(self):
@@ -33,6 +33,8 @@ class HomeScreen(QMainWindow):
         title = QLabel("NBJournal")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
+
+        splash_texts = load_splash_texts()
 
         subtitle = QLabel("Home")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
