@@ -106,9 +106,8 @@ class HomeScreen(QMainWindow):
             self,
             "Credits",
             "NBJournal\n\n"
-            "Created by: Your Name\n"
+            "Created by: Nate, Beto, and Emma\n"
             "Thanks to the PyQt6 project.\n\n"
-            "Placeholder credits info."
         )
 
 
