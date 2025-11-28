@@ -9,7 +9,7 @@ class Settings:
     # Example settings fields
     theme: str = "light"
     autosave_interval: int = 10  # in minutes
-    username: str = "default_user"
+    username: str = None
     notifications_enabled: bool = True
     font_size: int = 12
     font: str = "Arial"
