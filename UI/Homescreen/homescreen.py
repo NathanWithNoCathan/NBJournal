@@ -178,9 +178,6 @@ class HomeScreen(QMainWindow):
         self.credits_action.triggered.connect(self.show_credits)
         viewMenu.addAction(self.credits_action)
 
-    def _create_logs_menu(self):
-        pass
-
     def _new_log(self):
         """Create a new Log and open it in the Log Editor."""
         from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]

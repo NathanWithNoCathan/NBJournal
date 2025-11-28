@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QSpinBox,
     QHBoxLayout,
     QPushButton,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt
 import DataClasses.settings as settings
@@ -60,7 +61,7 @@ class SettingsWindow(QDialog):
         us = settings.user_settings
 
         # Iterate over top-level groups (appearance, preferences, etc.)
-        for group_name in ("appearance", "preferences", "ai_settings"):
+        for group_name in ("appearance", "preferences", "ai_settings", "color_palette"):
             group_obj = getattr(us, group_name, None)
             if group_obj is None:
                 continue
@@ -128,5 +129,10 @@ class SettingsWindow(QDialog):
             setattr(group_obj, field_name, new_value)
 
         # Persist to disk
-        us.save()
+        try:
+            us.save()
+        except ValueError as e:
+            QMessageBox.critical(self, "Settings Error", str(e))
+            return
+
         self.accept()
