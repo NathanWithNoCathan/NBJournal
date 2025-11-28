@@ -8,14 +8,10 @@ import os
 
 LOGS_FOLDER = "logs"
 
-
 def _datetime_to_iso(dt: datetime) -> str:
     return dt.isoformat()
-
-
 def _datetime_from_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
-
 
 @dataclass
 class Log:
