@@ -12,7 +12,6 @@
     - Description
 
 - Home screen UI
-    - View logs
-    - Settings
+    - View logs (new window)
+    - Settings (new window)
     - Credits info
-    
