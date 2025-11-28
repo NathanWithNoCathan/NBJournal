@@ -151,11 +151,8 @@ class HomeScreen(QMainWindow):
         fileMenu = menuBar.addMenu("Log")
 
         self.new_log_action = QAction("New Log", self)
+        self.new_log_action.triggered.connect(self._new_log)
         fileMenu.addAction(self.new_log_action)
-
-        # Edit menu
-        editMenu = menuBar.addMenu("Edit")
-
 
         # View menu
         viewMenu = menuBar.addMenu("View")
@@ -171,11 +168,10 @@ class HomeScreen(QMainWindow):
     def _create_logs_menu(self):
         pass
 
-def main():
-    app = QApplication(sys.argv)
-    window = HomeScreen()
-    window.show()
-    sys.exit(app.exec())
+    def _new_log(self):
+        """Create a new Log and open it in the Log Editor."""
+        from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
 
-if __name__ == "__main__":
-    main()
+        new_log = settings.create_new_log()
+        log_editor = LogEditorWindow(new_log, parent=self)
+        log_editor.show()
