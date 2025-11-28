@@ -2,6 +2,8 @@
 
 from UI.Homescreen.homescreen import HomeScreen  # type: ignore[import]
 import DataClasses.settings as settings # type: ignore[import]
+import DataClasses.log as log  # type: ignore[import]
+import DataClasses.tag as tag
 
 def main():
     """Main entry point for the application."""
