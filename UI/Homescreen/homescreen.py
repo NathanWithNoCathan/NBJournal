@@ -171,7 +171,27 @@ class HomeScreen(QMainWindow):
     def _new_log(self):
         """Create a new Log and open it in the Log Editor."""
         from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
+        from DataClasses.log import Log, LOGS_FOLDER
+        import os
+        import uuid
 
-        new_log = settings.create_new_log()
+        # Randomly generate a new log path that does not overwrite
+        # an existing file in the `logs` directory.
+        logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), LOGS_FOLDER)
+        os.makedirs(logs_dir, exist_ok=True)
+
+        while True:
+            candidate_name = f"log_{uuid.uuid4().hex[:8]}.json"
+            candidate_path = os.path.join(logs_dir, candidate_name)
+            if not os.path.exists(candidate_path):
+                break
+
+        new_log = Log(
+            name="",
+            description="",
+            body="",
+            path=candidate_name,
+        )
+
         log_editor = LogEditorWindow(new_log, parent=self)
         log_editor.show()
