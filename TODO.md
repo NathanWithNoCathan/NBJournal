@@ -1,7 +1,7 @@
 # Main TODO List
 
 - Home screen UI
-    - [ ]View logs (new window)
+    - [ ] View logs (new window)
         - [ ] Searching and Sorting logs
     - [X] Settings (new window)
     - [X] Credits info
@@ -10,9 +10,9 @@
 
 - Log Editor
     - [ ] Tag adding
-    - [ ]Implementing markdown
+    - [ ] Implementing markdown
     - [ ] Individual log settings (Date of log, Tags, etc.)
-    - [ ]Password Protection
+    - [ ] Password Protection
     - [ ] Embeding Media Inline
 
 - Including AI
