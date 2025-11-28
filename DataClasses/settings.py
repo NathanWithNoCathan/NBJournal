@@ -1,4 +1,4 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import json
 import os
 
@@ -24,12 +24,11 @@ class UserPreferences:
 
 @dataclass
 class Settings:
-    appearance: AppearanceSettings = AppearanceSettings()
-    preferences: UserPreferences = UserPreferences()
+    appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
+    preferences: UserPreferences = field(default_factory=UserPreferences)
 
     def save(self, path: str | None = None) -> None:
         file_path = path or SETTINGS_FILE
-        # asdict handles nested dataclasses automatically
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=4)
 

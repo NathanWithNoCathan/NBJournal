@@ -39,8 +39,8 @@ class HomeScreen(QMainWindow):
         (all_splash_texts, no_asterisk_texts, asterisk_texts) = load_splash_texts()
         # Choose a splash text at random
         # If username is set, use use any instance and replace * with username, otherwise, use non asterisked version
-        if settings.user_settings.username != "default_user" and asterisk_texts:
-            splash_text = random.choice(all_splash_texts).replace("*", settings.user_settings.username)
+        if settings.user_settings.preferences.username != "default_user" and asterisk_texts:
+            splash_text = random.choice(all_splash_texts).replace("*", settings.user_settings.preferences.username)
         elif no_asterisk_texts:
             splash_text = random.choice(no_asterisk_texts)
         else:
