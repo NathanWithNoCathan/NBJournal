@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 
 from UI.Logs.logs import LogsWindow  # type: ignore[import]
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
-from csv_loader import load_splash_texts
+from UI.Homescreen.csv_loader import load_splash_texts
 
 class HomeScreen(QMainWindow):
     def __init__(self):
