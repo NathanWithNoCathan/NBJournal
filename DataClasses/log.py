@@ -112,4 +112,4 @@ def load_logs() -> list[Log]:
     return log_list
 
 
-logs: list[Log] = load_logs()
+logs: list[Log] = load_logs() # Global list of loaded logs

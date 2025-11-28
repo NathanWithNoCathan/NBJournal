@@ -4,36 +4,66 @@ import os
 
 SETTINGS_FILE = "user_settings.json"
 
+
 @dataclass
-class Settings:
-    # Example settings fields
+class AppearanceSettings:
     theme: str = "light"
-    autosave_interval: int = 10  # in minutes
-    username: str = "default_user"
-    notifications_enabled: bool = True
     font_size: int = 12
     font: str = "Arial"
 
+
+@dataclass
+class UserPreferences:
+    username: str = "default_user"
+    notifications_enabled: bool = True
+    autosave_interval: int = 10  # in minutes
+
     def toggle_notifications(self) -> None:
-        """Toggle the notifications setting."""
         self.notifications_enabled = not self.notifications_enabled
 
+
+@dataclass
+class Settings:
+    appearance: AppearanceSettings = AppearanceSettings()
+    preferences: UserPreferences = UserPreferences()
+
     def save(self, path: str | None = None) -> None:
-        """Persist current settings to disk as JSON."""
         file_path = path or SETTINGS_FILE
+        # asdict handles nested dataclasses automatically
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=4)
 
 
 def load_settings(path: str | None = None) -> Settings:
-    """Load settings from disk, falling back to defaults if missing/invalid."""
     file_path = path or SETTINGS_FILE
 
     if os.path.exists(file_path):
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return Settings(**data)
+
+            # Support both new nested structure and old flat structure
+            if "appearance" in data or "preferences" in data:
+                # New format: hydrate nested dataclasses
+                appearance_data = data.get("appearance", {})
+                prefs_data = data.get("preferences", {})
+                appearance = AppearanceSettings(**appearance_data)
+                preferences = UserPreferences(**prefs_data)
+                return Settings(appearance=appearance, preferences=preferences)
+            else:
+                # Old flat format: map fields into groups for backward compatibility
+                appearance = AppearanceSettings(
+                    theme=data.get("theme", "light"),
+                    font_size=data.get("font_size", 12),
+                    font=data.get("font", "Arial"),
+                )
+                preferences = UserPreferences(
+                    username=data.get("username", "default_user"),
+                    notifications_enabled=data.get("notifications_enabled", True),
+                    autosave_interval=data.get("autosave_interval", 10),
+                )
+                return Settings(appearance=appearance, preferences=preferences)
+
         except Exception:
             # If file is corrupt or incompatible, fall back to defaults.
             pass
@@ -43,4 +73,4 @@ def load_settings(path: str | None = None) -> Settings:
 
 # Global settings instance, always loaded from the same file
 user_settings: Settings = load_settings()
-user_settings.save()  # Ensure settings file exists
+user_settings.save()  # Ensure settings file exists / migrates format
