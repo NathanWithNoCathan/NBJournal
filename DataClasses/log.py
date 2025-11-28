@@ -84,9 +84,23 @@ class Log:
         if not os.path.exists(LOGS_FOLDER):
             os.makedirs(LOGS_FOLDER)
 
+        global logs
+        if self not in logs:
+            logs.append(self)
+
         file_path = os.path.join(LOGS_FOLDER, self.path)
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.to_json_dict(), f, indent=4)
+
+    def delete(self) -> None:
+        """Delete the log file from disk and remove from global logs list."""
+        global logs
+        if self in logs:
+            logs.remove(self)
+
+        file_path = os.path.join(LOGS_FOLDER, self.path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 
 def load_logs() -> list[Log]:

@@ -1,4 +1,4 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QAction
 import sys
 
@@ -20,6 +20,7 @@ from UI.Homescreen.csv_loader import load_splash_texts
 from UI.Homescreen.logs_viewer import LogsViewer
 import random
 import DataClasses.settings as settings
+
 
 class HomeScreen(QMainWindow):
     def __init__(self):
@@ -135,6 +136,10 @@ class HomeScreen(QMainWindow):
         self.logs_viewer.setVisible(not is_visible)
         self.toggle_logs_button.setText("Hide Logs" if not is_visible else "Show Logs")
 
+    def _on_log_saved(self, _log):
+        """Handle a log-saved event by reloading the logs viewer."""
+        self.logs_viewer.reload_logs()
+
     def show_credits(self):
         QMessageBox.information(
             self,
@@ -153,6 +158,14 @@ class HomeScreen(QMainWindow):
         self.new_log_action = QAction("New Log", self)
         self.new_log_action.triggered.connect(self._new_log)
         fileMenu.addAction(self.new_log_action)
+
+        self.edit_logs_action = QAction("Edit Log", self)
+        self.edit_logs_action.triggered.connect(self._edit_log)
+        fileMenu.addAction(self.edit_logs_action)
+
+        self.delete_log_action = QAction("Delete Log", self)
+        self.delete_log_action.triggered.connect(self._delete_log)
+        fileMenu.addAction(self.delete_log_action)
 
         # View menu
         viewMenu = menuBar.addMenu("View")
@@ -195,3 +208,35 @@ class HomeScreen(QMainWindow):
 
         log_editor = LogEditorWindow(new_log, parent=self)
         log_editor.show()
+
+    def _edit_log(self):
+        """Open the currently selected log in the Log Editor."""
+        from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
+
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to edit.")
+            return
+
+        log_editor = LogEditorWindow(self.current_log, parent=self)
+        log_editor.show()
+
+    def _delete_log(self):
+        """Delete the currently selected log after user confirmation."""
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to delete.")
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Confirm Delete",
+            f"Are you sure you want to delete the log '{self.current_log.name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if confirm == QMessageBox.StandardButton.Yes:
+            try:
+                self.current_log.delete()
+                QMessageBox.information(self, "Log Deleted", "The log was deleted successfully.")
+                self.logs_viewer.reload_logs()
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"Failed to delete log:\n{exc}")

@@ -32,6 +32,7 @@ class LogEditorWindow(QMainWindow):
 		self.setWindowTitle("NBJournal - Log Editor")
 		self.resize(900, 700)
 
+		self.homescreen: HomeScreen | None = None
 		if parent and isinstance(parent, HomeScreen):
 			self.homescreen = parent
 
@@ -104,6 +105,11 @@ class LogEditorWindow(QMainWindow):
 	# --- Actions ------------------------------------------------------
 	def save_log(self) -> None:
 		"""Update the Log object and persist it using its `save` method."""
+		# If log has no title, prevent saving
+		if self.log.name.strip() == "":
+			QMessageBox.warning(self, "Warning", "Log must have a title before saving.")
+			return
+
 		self._update_log_from_widgets()
 		try:
 			self.log.save()
@@ -112,6 +118,14 @@ class LogEditorWindow(QMainWindow):
 			return
 
 		QMessageBox.information(self, "Saved", "Log saved successfully.")
+
+		# Notify the homescreen (if available) that a log was saved so
+		# it can refresh the logs list via its LogsViewer.
+		if self.homescreen is not None:
+			try:
+				self.homescreen._on_log_saved(self.log)
+			except Exception:
+				pass
 
 
 def main() -> None:

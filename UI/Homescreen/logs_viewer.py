@@ -88,6 +88,13 @@ class LogsViewer(QWidget):
 		if self._logs:
 			self.list_widget.setCurrentRow(0)
 
+	def reload_logs(self) -> None:
+		"""Reload the logs from the shared `logs` collection and refresh UI."""
+		# Re-bind to the global `logs` list in case it changed elsewhere.
+		from DataClasses.log import logs as global_logs  # local import to avoid cycles
+		self._logs = global_logs
+		self._populate_list()
+
 	def _on_list_selection_changed(
 		self,
 		current: Optional[QListWidgetItem],
@@ -119,3 +126,5 @@ class LogsViewer(QWidget):
 		# assignment. For now, we assume `log.body` holds HTML/markdown-
 		# compatible content.
 		self.preview_body.setMarkdown(log.body)
+		
+    
