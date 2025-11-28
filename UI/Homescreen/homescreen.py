@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (
 from UI.Logs.logs import LogsWindow  # type: ignore[import]
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
 from UI.Homescreen.csv_loader import load_splash_texts
+import random
+import DataClasses.settings as settings
 
 class HomeScreen(QMainWindow):
     def __init__(self):
@@ -34,7 +36,18 @@ class HomeScreen(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet("font-size: 24px; font-weight: bold;")
 
-        splash_texts = load_splash_texts()
+        (all_splash_texts, no_asterisk_texts, asterisk_texts) = load_splash_texts()
+        # Choose a splash text at random
+        # If username is set, use use any instance and replace * with username, otherwise, use non asterisked version
+        if settings.user_settings.username != "default_user" and asterisk_texts:
+            splash_text = random.choice(all_splash_texts).replace("*", settings.user_settings.username)
+        elif no_asterisk_texts:
+            splash_text = random.choice(no_asterisk_texts)
+        else:
+            splash_text = "Welcome to NBJournal!"
+        splash_label = QLabel(splash_text)
+        splash_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        splash_label.setStyleSheet("font-style: italic; color: gray; margin-bottom: 16px;")
 
         subtitle = QLabel("Home")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -55,6 +68,7 @@ class HomeScreen(QMainWindow):
         actions_layout.addWidget(btn_credits)
 
         central_layout.addWidget(title)
+        central_layout.addWidget(splash_label)
         central_layout.addWidget(subtitle)
         central_layout.addLayout(actions_layout)
 

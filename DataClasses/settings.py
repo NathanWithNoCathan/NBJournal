@@ -43,3 +43,4 @@ def load_settings(path: str | None = None) -> Settings:
 
 # Global settings instance, always loaded from the same file
 user_settings: Settings = load_settings()
+user_settings.save()  # Ensure settings file exists
