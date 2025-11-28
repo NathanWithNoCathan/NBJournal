@@ -2,7 +2,6 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
 import sys
 
-# c:/Users/mccom/Desktop/School shit/College senior/NBJournal/UI/Homescreen/homescreen.py
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -15,7 +14,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
 )
 
-from UI.Logs.logs import LogsWindow  # type: ignore[import]
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
 from UI.Homescreen.csv_loader import load_splash_texts
 import random
@@ -38,7 +36,7 @@ class HomeScreen(QMainWindow):
 
         (all_splash_texts, no_asterisk_texts, asterisk_texts) = load_splash_texts()
         # Choose a splash text at random
-        # If username is set, use use any instance and replace * with username, otherwise, use non asterisked version
+        # If username is set, use any instance and replace * with username, otherwise, use non asterisked version
         if settings.user_settings.preferences.username != "default_user" and asterisk_texts:
             splash_text = random.choice(all_splash_texts).replace("*", settings.user_settings.preferences.username)
         elif no_asterisk_texts:
@@ -55,15 +53,12 @@ class HomeScreen(QMainWindow):
 
         # Primary actions
         actions_layout = QHBoxLayout()
-        btn_view_logs = QPushButton("View Logs")
         btn_settings = QPushButton("Settings")
         btn_credits = QPushButton("Credits")
 
-        btn_view_logs.clicked.connect(self.open_logs)
         btn_settings.clicked.connect(self.open_settings)
         btn_credits.clicked.connect(self.show_credits)
 
-        actions_layout.addWidget(btn_view_logs)
         actions_layout.addWidget(btn_settings)
         actions_layout.addWidget(btn_credits)
 
@@ -74,7 +69,6 @@ class HomeScreen(QMainWindow):
 
         # Info area
         info = QLabel(
-            "Use 'View Logs' to manage your journal entries.\n"
             "Open 'Settings' to configure preferences.\n"
             "See 'Credits' for acknowledgements."
         )
@@ -89,10 +83,6 @@ class HomeScreen(QMainWindow):
         toolbar = QToolBar("Main")
         self.addToolBar(toolbar)
 
-        act_view_logs = QAction("View Logs", self)
-        act_view_logs.triggered.connect(self.open_logs)
-        toolbar.addAction(act_view_logs)
-
         act_settings = QAction("Settings", self)
         act_settings.triggered.connect(self.open_settings)
         toolbar.addAction(act_settings)
@@ -102,15 +92,7 @@ class HomeScreen(QMainWindow):
         toolbar.addAction(act_credits)
 
         # Placeholders for child windows
-        self._logs_window = None
         self._settings_window = None
-
-    def open_logs(self):
-        if self._logs_window is None:
-            self._logs_window = LogsWindow(self)
-        self._logs_window.show()
-        self._logs_window.raise_()
-        self._logs_window.activateWindow()
 
     def open_settings(self):
         if self._settings_window is None:
@@ -124,8 +106,9 @@ class HomeScreen(QMainWindow):
             self,
             "Credits",
             "NBJournal\n\n"
-            "Created by: Nate, Beto, Emma\n"
-            "Thanks to the PyQt6 project.\n"
+            "Created by: Your Name\n"
+            "Thanks to the PyQt6 project.\n\n"
+            "Placeholder credits info."
         )
 
 
