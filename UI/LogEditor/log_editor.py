@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from DataClasses.log import Log
-
+from UI.Homescreen.homescreen import HomeScreen
 
 class LogEditorWindow(QMainWindow):
 	"""Basic editor window for a single Log instance.
@@ -32,6 +32,9 @@ class LogEditorWindow(QMainWindow):
 		self.setWindowTitle("NBJournal - Log Editor")
 		self.resize(900, 700)
 
+		if parent and isinstance(parent, HomeScreen):
+			self.homescreen = parent
+
 		self._init_ui()
 		self._populate_from_log()
 
@@ -45,24 +48,6 @@ class LogEditorWindow(QMainWindow):
 		# Title field
 		title_label = QLabel("Title")
 		self.title_edit = QLineEdit()
-
-		# Description field
-		desc_label = QLabel("Description")
-		self.description_edit = QLineEdit()
-
-		# Toolbar for future features (tags, markdown helpers, etc.)
-		toolbar_layout = QHBoxLayout()
-
-		self.btn_tags = QPushButton("Tags")
-		self.btn_log_settings = QPushButton("Log Settings")
-		self.btn_password = QPushButton("Password")
-		self.btn_media = QPushButton("Embed Media")
-
-		# Currently these are placeholders; they can later open dialogs
-		for btn in (self.btn_tags, self.btn_log_settings, self.btn_password, self.btn_media):
-			btn.setEnabled(False)
-			toolbar_layout.addWidget(btn)
-		toolbar_layout.addStretch(1)
 
 		# Markdown body editor
 		body_label = QLabel("Body (Markdown)")
@@ -80,9 +65,6 @@ class LogEditorWindow(QMainWindow):
 		# Assemble layout
 		root_layout.addWidget(title_label)
 		root_layout.addWidget(self.title_edit)
-		root_layout.addWidget(desc_label)
-		root_layout.addWidget(self.description_edit)
-		root_layout.addLayout(toolbar_layout)
 		root_layout.addWidget(body_label)
 		root_layout.addWidget(self.body_edit, 1)
 		root_layout.addLayout(actions_layout)
@@ -94,28 +76,28 @@ class LogEditorWindow(QMainWindow):
 		toolbar = QToolBar("Log Editor", self)
 		self.addToolBar(toolbar)
 
-		btn_save_toolbar = QPushButton("Save")
-		btn_close_toolbar = QPushButton("Close")
-		toolbar.addWidget(btn_save_toolbar)
-		toolbar.addWidget(btn_close_toolbar)
+		btn_home_toolbar = QPushButton("Home")
+		btn_settings_toolbar = QPushButton("Settings")
+		toolbar.addWidget(btn_home_toolbar)
+		toolbar.addWidget(btn_settings_toolbar)
 
 		# Wiring signals
 		self.btn_save.clicked.connect(self.save_log)
 		self.btn_cancel.clicked.connect(self.close)
-		btn_save_toolbar.clicked.connect(self.save_log)
-		btn_close_toolbar.clicked.connect(self.close)
+
+		# Go to a seperate window
+		btn_home_toolbar.clicked.connect(self.close)
+		btn_settings_toolbar.clicked.connect(self.homescreen.open_settings)
 
 	# --- Data binding -------------------------------------------------
 	def _populate_from_log(self) -> None:
 		"""Fill widgets from the current Log instance."""
 		self.title_edit.setText(self.log.name)
-		self.description_edit.setText(self.log.description)
 		self.body_edit.setPlainText(self.log.body)
 
 	def _update_log_from_widgets(self) -> None:
 		"""Copy data from widgets back into the Log instance."""
 		self.log.name = self.title_edit.text()
-		self.log.description = self.description_edit.text()
 		self.log.body = self.body_edit.toPlainText()
 		self.log.add_revision()
 
