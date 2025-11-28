@@ -60,7 +60,7 @@ class SettingsWindow(QDialog):
         us = settings.user_settings
 
         # Iterate over top-level groups (appearance, preferences, etc.)
-        for group_name in ("appearance", "preferences"):
+        for group_name in ("appearance", "preferences", "ai_settings"):
             group_obj = getattr(us, group_name, None)
             if group_obj is None:
                 continue

@@ -4,13 +4,19 @@ import os
 
 SETTINGS_FILE = "user_settings.json"
 
+@dataclass
+class ArtificialIntelligenceSettings:
+    enabled: bool = False
+    api_key: str = ""
+    tag_recommendations: bool = True
+    sentiment_analysis: bool = False
+    content_summarization: bool = False
 
 @dataclass
 class AppearanceSettings:
     theme: str = "light"
     font_size: int = 12
     font: str = "Arial"
-
 
 @dataclass
 class UserPreferences:
@@ -26,6 +32,7 @@ class UserPreferences:
 class Settings:
     appearance: AppearanceSettings = field(default_factory=AppearanceSettings)
     preferences: UserPreferences = field(default_factory=UserPreferences)
+    ai_settings: ArtificialIntelligenceSettings = field(default_factory=ArtificialIntelligenceSettings)
 
     def save(self, path: str | None = None) -> None:
         file_path = path or SETTINGS_FILE
@@ -41,27 +48,13 @@ def load_settings(path: str | None = None) -> Settings:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # Support both new nested structure and old flat structure
-            if "appearance" in data or "preferences" in data:
-                # New format: hydrate nested dataclasses
-                appearance_data = data.get("appearance", {})
-                prefs_data = data.get("preferences", {})
-                appearance = AppearanceSettings(**appearance_data)
-                preferences = UserPreferences(**prefs_data)
-                return Settings(appearance=appearance, preferences=preferences)
-            else:
-                # Old flat format: map fields into groups for backward compatibility
-                appearance = AppearanceSettings(
-                    theme=data.get("theme", "light"),
-                    font_size=data.get("font_size", 12),
-                    font=data.get("font", "Arial"),
-                )
-                preferences = UserPreferences(
-                    username=data.get("username", "default_user"),
-                    notifications_enabled=data.get("notifications_enabled", True),
-                    autosave_interval=data.get("autosave_interval", 10),
-                )
-                return Settings(appearance=appearance, preferences=preferences)
+            appearance_data = data.get("appearance", {})
+            prefs_data = data.get("preferences", {})
+            ai_data = data.get("ai_settings", {})
+            appearance = AppearanceSettings(**appearance_data)
+            preferences = UserPreferences(**prefs_data)
+            ai_settings = ArtificialIntelligenceSettings(**ai_data)
+            return Settings(appearance=appearance, preferences=preferences, ai_settings=ai_settings)
 
         except Exception:
             # If file is corrupt or incompatible, fall back to defaults.

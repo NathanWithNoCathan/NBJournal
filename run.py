@@ -37,5 +37,5 @@ def test_log_editor():
     sys.exit(app.exec())
 
 if __name__ == "__main__":
-    test_log_editor()
-    # main()
+    # test_log_editor()
+    main()
