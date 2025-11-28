@@ -12,10 +12,12 @@ from PyQt6.QtWidgets import (
     QToolBar,
     QMessageBox,
     QHBoxLayout,
+    QMenu
 )
 
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
 from UI.Homescreen.csv_loader import load_splash_texts
+from UI.Homescreen.logs_viewer import LogsViewer
 import random
 import DataClasses.settings as settings
 
@@ -27,8 +29,16 @@ class HomeScreen(QMainWindow):
 
         # Central content
         central = QWidget()
-        central_layout = QVBoxLayout()
-        central_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        # Root layout: three regions (top, middle, bottom)
+        root_layout = QVBoxLayout()
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        # --- Top region: title + splash, hugging the top ---
+        top_layout = QVBoxLayout()
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(4)
 
         title = QLabel("NBJournal")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -47,52 +57,62 @@ class HomeScreen(QMainWindow):
         splash_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         splash_label.setStyleSheet("font-style: italic; color: gray; margin-bottom: 16px;")
 
-        subtitle = QLabel("Home")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle.setStyleSheet("color: gray;")
+        top_layout.addWidget(title)
+        top_layout.addWidget(splash_label)
 
-        # Primary actions
-        actions_layout = QHBoxLayout()
-        btn_settings = QPushButton("Settings")
-        btn_credits = QPushButton("Credits")
+        # --- Middle region: toggle button + logs viewer filling space ---
+        self.logs_viewer = LogsViewer(self)
+        self.logs_viewer.setVisible(False)
 
-        btn_settings.clicked.connect(self.open_settings)
-        btn_credits.clicked.connect(self.show_credits)
+        toggle_bar = QHBoxLayout()
+        toggle_bar.setContentsMargins(0, 0, 0, 0)
+        toggle_bar.setSpacing(8)
+        toggle_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        actions_layout.addWidget(btn_settings)
-        actions_layout.addWidget(btn_credits)
+        self.toggle_logs_button = QPushButton("Show Logs")
+        self.toggle_logs_button.clicked.connect(self.toggle_logs_viewer)
+        toggle_bar.addWidget(self.toggle_logs_button)
 
-        central_layout.addWidget(title)
-        central_layout.addWidget(splash_label)
-        central_layout.addWidget(subtitle)
-        central_layout.addLayout(actions_layout)
+        middle_layout = QVBoxLayout()
+        # Add horizontal margins so the logs viewer doesn't touch window edges
+        middle_layout.setContentsMargins(16, 0, 16, 0)
+        middle_layout.setSpacing(4)
+        middle_layout.addLayout(toggle_bar)
+        # logs_viewer takes all vertical stretch in this middle region
+        middle_layout.addWidget(self.logs_viewer, stretch=1)
 
-        # Info area
+        # --- Bottom region: info label hugging the bottom ---
+        bottom_layout = QVBoxLayout()
+        bottom_layout.setContentsMargins(0, 0, 0, 0)
+        bottom_layout.setSpacing(0)
+
         info = QLabel(
             "Open 'Settings' to configure preferences.\n"
             "See 'Credits' for acknowledgements."
         )
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info.setStyleSheet("margin-top: 24px;")
-        central_layout.addWidget(info)
 
-        central.setLayout(central_layout)
+        # Add stretch before info so it hugs the bottom of its region
+        bottom_layout.addStretch(1)
+        bottom_layout.addWidget(info)
+
+        # --- Assemble root layout: top fixed, middle stretch, bottom fixed ---
+        root_layout.addLayout(top_layout)          # no stretch -> size to contents
+        root_layout.addLayout(middle_layout, 1)    # stretch -> takes remaining space
+        root_layout.addLayout(bottom_layout)       # no stretch -> size to contents
+
+        central.setLayout(root_layout)
         self.setCentralWidget(central)
-
-        # Optional toolbar
-        toolbar = QToolBar("Main")
-        self.addToolBar(toolbar)
-
-        act_settings = QAction("Settings", self)
-        act_settings.triggered.connect(self.open_settings)
-        toolbar.addAction(act_settings)
-
-        act_credits = QAction("Credits", self)
-        act_credits.triggered.connect(self.show_credits)
-        toolbar.addAction(act_credits)
 
         # Placeholders for child windows
         self._settings_window = None
+
+        # Currently selected log exposed from the logs viewer
+        self.current_log = self.logs_viewer.current_log
+        self.logs_viewer.selected_log_changed.connect(self._on_selected_log_changed)
+
+        self._create_menu_bar()
 
     def open_settings(self):
         if self._settings_window is None:
@@ -100,6 +120,20 @@ class HomeScreen(QMainWindow):
         self._settings_window.show()
         self._settings_window.raise_()
         self._settings_window.activateWindow()
+
+    def _on_selected_log_changed(self, log):
+        """Handle updates when the user selects a different log.
+
+        The latest selected `Log` instance is stored on the window as
+        `current_log` so other parts of the HomeScreen can react to it.
+        """
+        self.current_log = log
+
+    def toggle_logs_viewer(self):
+        """Show/hide the logs viewer and update the button label."""
+        is_visible = self.logs_viewer.isVisible()
+        self.logs_viewer.setVisible(not is_visible)
+        self.toggle_logs_button.setText("Hide Logs" if not is_visible else "Show Logs")
 
     def show_credits(self):
         QMessageBox.information(
@@ -110,6 +144,32 @@ class HomeScreen(QMainWindow):
             "Thanks to the PyQt6 project.\n\n"
         )
 
+    def _create_menu_bar(self):
+        menuBar = self.menuBar()
+
+        # File menu
+        fileMenu = menuBar.addMenu("Log")
+
+        self.new_log_action = QAction("New Log", self)
+        fileMenu.addAction(self.new_log_action)
+
+        # Edit menu
+        editMenu = menuBar.addMenu("Edit")
+
+
+        # View menu
+        viewMenu = menuBar.addMenu("View")
+
+        self.settings_action = QAction("Settings", self)
+        self.settings_action.triggered.connect(self.open_settings)
+        viewMenu.addAction(self.settings_action)
+
+        self.credits_action = QAction("Credits", self)
+        self.credits_action.triggered.connect(self.show_credits)
+        viewMenu.addAction(self.credits_action)
+
+    def _create_logs_menu(self):
+        pass
 
 def main():
     app = QApplication(sys.argv)
