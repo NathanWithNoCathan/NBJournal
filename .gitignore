@@ -2,3 +2,4 @@ api_key.txt
 user_settings.json
 logs/
 *__pycache__/
+*.pyc
