@@ -12,33 +12,11 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QToolBar,
     QMessageBox,
-    QDialog,
     QHBoxLayout,
 )
 
-
-class LogsWindow(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Logs")
-        self.setModal(False)
-        self.resize(600, 400)
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("Logs view placeholder"))
-        # TODO: Replace with actual logs list/table connected to data classes
-        self.setLayout(layout)
-
-
-class SettingsWindow(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Settings")
-        self.setModal(False)
-        self.resize(400, 300)
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel("Settings placeholder"))
-        # TODO: Add settings controls and persist them
-        self.setLayout(layout)
+from UI.Logs.logs import LogsWindow  # type: ignore[import]
+from UI.Settings.settings import SettingsWindow  # type: ignore[import]
 
 
 class HomeScreen(QMainWindow):
