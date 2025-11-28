@@ -1,5 +1,18 @@
 # Main TODO List
 
-- item1
-- item2
-- item3
+- Implement log data classes
+    - Name, description, body
+    - Optional thumbnail
+    - Tagging system
+    - Track creation date, revision history
+    - Log version
+
+- Tags
+    - Name
+    - Description
+
+- Home screen UI
+    - View logs
+    - Settings
+    - Credits info
+    
