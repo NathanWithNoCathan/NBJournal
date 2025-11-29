@@ -1,5 +1,6 @@
 api_key.txt
 user_settings.json
 logs/
+tags/
 *__pycache__/
 *.pyc

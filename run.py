@@ -38,6 +38,7 @@ def main():
         qt_palette.setColor(QPalette.ColorRole.BrightText, c(palette_data.bright_text))
         qt_palette.setColor(QPalette.ColorRole.Highlight, c(palette_data.highlight))
         qt_palette.setColor(QPalette.ColorRole.HighlightedText, c(palette_data.highlighted_text))
+        qt_palette.setColor(QPalette.ColorRole.Link, c(palette_data.link))
 
         app.setPalette(qt_palette)
 

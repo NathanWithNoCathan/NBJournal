@@ -9,7 +9,7 @@
     - [ ] Log Statistics
 
 - Log Editor
-    - [ ] Tag adding
+    - [X] Tag adding
     - [X] Implementing markdown
     - [ ] Individual log settings (Date of log, Tags, etc.)
     - [ ] Password Protection

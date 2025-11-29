@@ -30,11 +30,17 @@ class Tag:
         if not os.path.exists(TAGS_FOLDER):
             os.makedirs(TAGS_FOLDER)
 
-        # Use the normalized name as filename
         filename = f"{self.name}.json"
         filepath = os.path.join(TAGS_FOLDER, filename)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(asdict(self), f, indent=4)
+
+    def delete(self) -> None:
+        """Delete the persisted JSON file for this tag, if present."""
+        filename = f"{self.name}.json"
+        filepath = os.path.join(TAGS_FOLDER, filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
 
 def load_tags() -> list[Tag]:
@@ -44,16 +50,17 @@ def load_tags() -> list[Tag]:
         return tags
 
     for filename in os.listdir(TAGS_FOLDER):
-        if filename.endswith(".json"):
-            filepath = os.path.join(TAGS_FOLDER, filename)
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                tag_obj = Tag(**data)
-                tags.append(tag_obj)
-            except Exception:
-                # Skip invalid/corrupt tag files
-                continue
+        if not filename.endswith(".json"):
+            continue
+        filepath = os.path.join(TAGS_FOLDER, filename)
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            tag_obj = Tag(**data)
+            tags.append(tag_obj)
+        except Exception:
+            # Skip invalid/corrupt tag files
+            continue
 
     return tags
 

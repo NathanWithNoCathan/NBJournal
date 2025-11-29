@@ -35,6 +35,7 @@ class ColorPalette:
     bright_text: str = "#FF0000"
     highlight: str = "#2A82DA"
     highlighted_text: str = "#000000"
+    link: str = "#AAAAAA"
 
     def validate(self, errors: List[str]) -> None:
         """Validate that all color strings look like hex colors."""
@@ -55,7 +56,7 @@ class ColorPalette:
         _valid_hex("bright_text", self.bright_text)
         _valid_hex("highlight", self.highlight)
         _valid_hex("highlighted_text", self.highlighted_text)
-
+        _valid_hex("link", self.link)
 
 @dataclass
 class LogViewerSettings:
@@ -84,7 +85,7 @@ class LogViewerSettings:
             errors.append(f"AppearanceSettings.font '{self.font}' is not a recognized font family.")
 
         # Validation can also be used as an on-save step
-        if hs_state.active_homescreen is not None:
+        if hs_state.active_homescreen is not None and not errors:
             hs_state.active_homescreen.logs_viewer.preview_body.setFont(QFontDatabase.font(self.font, "", self.font_size))
         if not hs_state.active_homescreen:
             print("Warning: active_homescreen is None during settings validation.")
@@ -116,7 +117,7 @@ class LogEditorSettings:
             errors.append(f"AppearanceSettings.font '{self.font}' is not a recognized font family.")
 
         # Validation can also be used as an on-save step
-        if le_state.active_log_editor is not None:
+        if le_state.active_log_editor is not None and not errors:
             le_state.active_log_editor.title_edit.setFont(QFontDatabase.font(self.font, "", self.font_size))
             le_state.active_log_editor.body_edit.setFont(QFontDatabase.font(self.font, "", self.font_size))
         if not le_state.active_log_editor:
@@ -199,7 +200,7 @@ def load_settings(path: str | None = None) -> Settings:
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            appearance_data = data.get("appearance", {})
+            log_editor_data = data.get("log_editor", {})
             prefs_data = data.get("preferences", {})
             ai_data = data.get("ai_settings", {})
             palette_data = data.get("color_palette", {})
@@ -208,7 +209,8 @@ def load_settings(path: str | None = None) -> Settings:
             preferences = UserPreferences(**prefs_data)
             ai_settings = ArtificialIntelligenceSettings(**ai_data)
             color_palette = ColorPalette(**palette_data)
-            return Settings(log_viewer=log_viewer, preferences=preferences, ai_settings=ai_settings, color_palette=color_palette)
+            log_editor = LogEditorSettings(**log_editor_data)
+            return Settings(log_viewer=log_viewer, preferences=preferences, ai_settings=ai_settings, color_palette=color_palette, log_editor=log_editor)
         except Exception:
             # If file is corrupt or incompatible, fall back to defaults.
             pass

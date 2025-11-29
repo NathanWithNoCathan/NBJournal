@@ -1,5 +1,5 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 import sys
 
 from PyQt6.QtWidgets import (
@@ -94,8 +94,8 @@ class HomeScreen(QMainWindow):
         bottom_layout.setSpacing(0)
 
         info = QLabel(
-            "Open 'Settings' to configure preferences.\n"
-            "See 'Credits' for acknowledgements."
+            "Click on a log to view it.\n"
+            "See the menu in the top left corner for creating, editing, and deleting logs."
         )
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info.setStyleSheet("margin-top: 24px;")
@@ -120,6 +120,7 @@ class HomeScreen(QMainWindow):
         self.logs_viewer.selected_log_changed.connect(self._on_selected_log_changed)
 
         self._create_menu_bar()
+        self._create_shortcuts()
 
     def open_settings(self):
         if self._settings_window is None:
@@ -161,17 +162,29 @@ class HomeScreen(QMainWindow):
         # File menu
         fileMenu = menuBar.addMenu("Log")
 
-        self.new_log_action = QAction("New Log", self)
+        self.log_info_action = QAction("Log Info (ctrl+I)", self)
+        self.log_info_action.triggered.connect(self._show_log_info)
+        fileMenu.addAction(self.log_info_action)
+
+        fileMenu.addSeparator()
+
+        self.new_log_action = QAction("New Log (ctrl+N)", self)
         self.new_log_action.triggered.connect(self._new_log)
         fileMenu.addAction(self.new_log_action)
 
-        self.edit_logs_action = QAction("Edit Log", self)
+        self.edit_logs_action = QAction("Edit Log (ctrl+E)", self)
         self.edit_logs_action.triggered.connect(self._edit_log)
         fileMenu.addAction(self.edit_logs_action)
 
-        self.delete_log_action = QAction("Delete Log", self)
+        self.delete_log_action = QAction("Delete Log (ctrl+D)", self)
         self.delete_log_action.triggered.connect(self._delete_log)
         fileMenu.addAction(self.delete_log_action)
+
+        fileMenu.addSeparator()
+
+        self.tag_editor_action = QAction("Tag Editor (ctrl+T)", self)
+        self.tag_editor_action.triggered.connect(self._open_tag_editor)
+        fileMenu.addAction(self.tag_editor_action)
 
         # View menu
         viewMenu = menuBar.addMenu("View")
@@ -187,14 +200,8 @@ class HomeScreen(QMainWindow):
         # Help menu
         helpMenu = menuBar.addMenu("Help")
 
-        self.search_help_action = QAction("Searching", self)
-        self.search_help_action.triggered.connect(self._open_search_help)
-        helpMenu.addAction(self.search_help_action)
-
-
-    def _open_search_help(self):
-        """Show a message box with help on searching logs."""
-        QMessageBox.information(
+        self.searching_help_action = QAction("Searching Guide", self)
+        self.searching_help_action.triggered.connect(lambda: QMessageBox.information(
             self,
             "Search Help",
             "To search logs, type keywords into the search bar above the logs list.\n\n"
@@ -210,7 +217,82 @@ class HomeScreen(QMainWindow):
             "  body:<keyword> - Search within log body text.\n\n"
             "Example: sort:asc tag:work project\n\n"
             "This would show logs tagged with 'work' and containing 'project' in the title or description, sorted in ascending order."
+        ))
+        helpMenu.addAction(self.searching_help_action)
+
+        self.info_action = QAction("About NBJournal", self)
+        self.info_action.triggered.connect(lambda: QMessageBox.information(
+            self,
+            "About NBJournal",
+            "NBJournal is a personal journaling application designed to help you organize and manage your logs effectively.\n\n"
+            "Features include:\n"
+            "- Creating, editing, and deleting logs\n"
+            "- Tagging logs for easy categorization\n"
+            "- Powerful search functionality\n"
+            "- Customizable settings and appearance\n"
+            "- AI-assisted statistical analysis and summaries\n\n"
+            "We hope NBJournal helps you keep track of your thoughts and experiences!"
+        ))
+        helpMenu.addAction(self.info_action)
+
+    def _create_shortcuts(self):
+        """Create keyboard shortcuts for common HomeScreen actions.
+
+        Mirrors the style used in `LogEditorWindow._create_shortcuts`.
+        """
+        # Log info (Ctrl+I)
+        QShortcut(QKeySequence("Ctrl+I"), self, activated=self._show_log_info)
+
+        # New log (Ctrl+N)
+        QShortcut(QKeySequence.StandardKey.New, self, activated=self._new_log)
+
+        # Edit current log (Ctrl+E)
+        QShortcut(QKeySequence("Ctrl+E"), self, activated=self._edit_log)
+
+        # Delete current log (Ctrl+D)
+        QShortcut(QKeySequence("Ctrl+D"), self, activated=self._delete_log)
+
+        # Toggle logs viewer visibility (Ctrl+L)
+        QShortcut(QKeySequence("Ctrl+L"), self, activated=self.toggle_logs_viewer)
+
+        # Open tag editor (Ctrl+T)
+        QShortcut(QKeySequence("Ctrl+T"), self, activated=self._open_tag_editor)  
+
+    def _show_log_info(self):
+        """Show information about the currently selected log."""
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to view its information.")
+            return
+
+        info_text = (
+            f"Name: {self.current_log.name}\n"
+            f"Description: {self.current_log.description}\n"
+            f"Path: {self.current_log.path}\n"
+            f"Created: {self.current_log.created_at.strftime("%Y-%m-%d %H:%M:%S")}\n"
+            f"Last modified: {self.current_log.revised_at.strftime("%Y-%m-%d %H:%M:%S")}\n"
+            f"Revision count: {len(self.current_log.revision_history) if self.current_log.revision_history else 0}\n"
+            f"Tags: {', '.join(tag.name for tag in self.current_log.tags) if self.current_log.tags else 'None'}\n"
         )
+
+        QMessageBox.information(self, "Log Information", info_text)
+
+    def _open_tag_editor(self):
+        """Open the Tag Editor window."""
+        from UI.TagEditor.tag_editor import TagEditorWindow  # type: ignore[import]
+
+        # Do not allow multiple tag editor windows at once.
+        from UI.TagEditor import state as tag_editor_state
+        if tag_editor_state.active_tag_editor is not None:
+            QMessageBox.information(
+                self,
+                "Tag Editor Already Open",
+                "You already have a tag editor open. Please close it "
+                "before opening another.",
+            )
+            return
+
+        tag_editor = TagEditorWindow(parent=self)
+        tag_editor.show()
 
     def _new_log(self):
         """Create a new Log and open it in the Log Editor."""

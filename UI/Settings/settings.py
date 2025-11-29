@@ -28,7 +28,7 @@ def snake_to_title(snake_str: str) -> str:
 class SettingsWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Settings")
+        self.setWindowTitle("NBJournal - Settings")
         self.resize(400, 500)
 
         self._widgets = {}  # (group_name, field_name) -> widget
