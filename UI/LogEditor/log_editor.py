@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 	QToolBar,
 	QMessageBox,
 )
+from PyQt6.QtGui import QAction
 
 from DataClasses.log import Log
 from UI.Homescreen.homescreen import HomeScreen
@@ -73,22 +74,11 @@ class LogEditorWindow(QMainWindow):
 		central.setLayout(root_layout)
 		self.setCentralWidget(central)
 
-		# Optional top toolbar with save/close
-		toolbar = QToolBar("Log Editor", self)
-		self.addToolBar(toolbar)
-
-		btn_home_toolbar = QPushButton("Home")
-		btn_settings_toolbar = QPushButton("Settings")
-		toolbar.addWidget(btn_home_toolbar)
-		toolbar.addWidget(btn_settings_toolbar)
-
 		# Wiring signals
 		self.btn_save.clicked.connect(self.save_log)
 		self.btn_cancel.clicked.connect(self.close)
 
-		# Go to a seperate window
-		btn_home_toolbar.clicked.connect(self.close)
-		btn_settings_toolbar.clicked.connect(self.homescreen.open_settings)
+		self._create_menu_bar()
 
 	# --- Data binding -------------------------------------------------
 	def _populate_from_log(self) -> None:
@@ -127,27 +117,12 @@ class LogEditorWindow(QMainWindow):
 			except Exception:
 				pass
 
+	def _create_menu_bar(self):
+		menuBar = self.menuBar()
 
-def main() -> None:
-	"""Small manual test harness for the Log editor.
+		# View menu
+		viewMenu = menuBar.addMenu("View")
 
-	Creates a temporary Log instance and opens it in the editor.
-	"""
-
-	# Simple default log – in real usage, pass a real Log instance
-	demo_log = Log(
-		name="New Log",
-		description="",
-		body="",
-		path="demo_log.json",
-	)
-
-	app = QApplication(sys.argv)
-	window = LogEditorWindow(demo_log)
-	window.show()
-	sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-	main()
-
+		self.settings_action = QAction("Settings", self)
+		self.settings_action.triggered.connect(self.homescreen.open_settings)
+		viewMenu.addAction(self.settings_action)
