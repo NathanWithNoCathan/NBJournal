@@ -77,6 +77,7 @@ class HomeScreen(QMainWindow):
         toggle_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.toggle_logs_button = QPushButton("Show Logs")
+        self.toggle_logs_button.setToolTip("Show or hide the log list (Ctrl+L)")
         self.toggle_logs_button.clicked.connect(self.toggle_logs_viewer)
         toggle_bar.addWidget(self.toggle_logs_button)
 
@@ -278,6 +279,18 @@ class HomeScreen(QMainWindow):
 
     def _open_tag_editor(self):
         """Open the Tag Editor window."""
+        # Prevent opening the tag editor if a tag manager is already open.
+        from UI.TagManager import state as tag_manager_state  # type: ignore[import]
+
+        if tag_manager_state.active_tag_manager is not None:
+            QMessageBox.information(
+                self,
+                "Tag Manager Already Open",
+                "You already have a tag manager open. Please close it "
+                "before opening the tag editor.",
+            )
+            return
+
         from UI.TagEditor.tag_editor import TagEditorWindow  # type: ignore[import]
 
         # Do not allow multiple tag editor windows at once.

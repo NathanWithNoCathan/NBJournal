@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFontDatabase, QFont
+from PyQt6.QtGui import QFontDatabase, QFont, QKeySequence, QShortcut
 from UI.Homescreen.state import active_homescreen
 import DataClasses.settings as settings
 
@@ -61,7 +61,9 @@ class SettingsWindow(QDialog):
         # Buttons row
         buttons_layout = QHBoxLayout()
         save_btn = QPushButton("Save")
+        save_btn.setToolTip("Save settings (Ctrl+S)")
         cancel_btn = QPushButton("Cancel")
+        cancel_btn.setToolTip("Cancel and close (Ctrl+W)")
         save_btn.clicked.connect(self._on_save)
         cancel_btn.clicked.connect(self.reject)
         buttons_layout.addStretch(1)
@@ -69,6 +71,10 @@ class SettingsWindow(QDialog):
         buttons_layout.addWidget(cancel_btn)
 
         main_layout.addLayout(buttons_layout)
+
+        # Shortcuts
+        QShortcut(QKeySequence("Ctrl+S"), self, activated=self._on_save)
+        QShortcut(QKeySequence("Ctrl+W"), self, activated=self.reject)
 
     def _build_groups(self, parent_layout: QVBoxLayout) -> None:
         """Build group boxes and fields from current user_settings."""
@@ -133,7 +139,7 @@ class SettingsWindow(QDialog):
             return cb
         elif isinstance(value, int):
             spin = QSpinBox()
-            spin.setRange(1, 10_000)  # generic range; tweak if needed
+            spin.setRange(0, 10_000)
             spin.setValue(value)
             return spin
         else:

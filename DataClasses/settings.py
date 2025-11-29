@@ -100,6 +100,10 @@ class LogEditorSettings:
         metadata={"tooltip": "The font family used throughout the application. Click to see available fonts.",
                   "click": lambda: QMessageBox.information(None, "Available Fonts", "List of available fonts: " + ", ".join(QFontDatabase.families()))}
     )
+    default_view_mode: int = field(
+        default=0,
+        metadata={"tooltip": "The default view mode for the log editor. 0=Title+Description+Body, 1=Title+Body, 2=Body Only."}
+    )
 
     def validate(self, errors: List[str]) -> None:
         if not isinstance(self.font_size, int) or self.font_size <= 0:
@@ -116,6 +120,9 @@ class LogEditorSettings:
         if self.font not in QFontDatabase.families():
             errors.append(f"AppearanceSettings.font '{self.font}' is not a recognized font family.")
 
+        if not isinstance(self.default_view_mode, int) or self.default_view_mode not in (0, 1, 2):
+            errors.append("LogEditorSettings.default_view_mode must be 0, 1, or 2.")
+
         # Validation can also be used as an on-save step
         if le_state.active_log_editor is not None and not errors:
             le_state.active_log_editor.title_edit.setFont(QFontDatabase.font(self.font, "", self.font_size))
@@ -126,9 +133,13 @@ class LogEditorSettings:
 class UserPreferences:
     username: str = "default_user"
     notifications_enabled: bool = True
-    autosave_interval: int = field(default=1, # in minutes
-                                   metadata={"tooltip": "Interval in minutes for autosaving notes.",
-                                             "requires_restart": True})  
+    autosave_interval: int = field(
+        default=30,  # in seconds
+        metadata={
+            "tooltip": "Interval in seconds for autosaving logs.",
+            "requires_restart": True,
+        },
+    )
 
     def toggle_notifications(self) -> None:
         self.notifications_enabled = not self.notifications_enabled
@@ -138,7 +149,7 @@ class UserPreferences:
             errors.append("UserPreferences.username must be a non-empty string.")
         if not isinstance(self.autosave_interval, int) or self.autosave_interval <= 0:
             errors.append(
-                f"UserPreferences.autosave_interval must be a positive integer (minutes). Got: {self.autosave_interval!r}"
+                f"UserPreferences.autosave_interval must be a positive integer (seconds). Got: {self.autosave_interval!r}"
             )
 
 

@@ -24,4 +24,6 @@
 
 - [ ] TODO List Builder
 
-- [ ] Notfications
+- [ ] Notifications
+
+- [X] Extensive keybinds

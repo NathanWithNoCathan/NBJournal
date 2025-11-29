@@ -58,15 +58,40 @@ class LogEditorWindow(QMainWindow):
 		root_layout.setSpacing(8)
 
 		# Title field
+		self.title_container = QWidget()
+		title_layout = QVBoxLayout()
+		title_layout.setContentsMargins(0, 0, 0, 0)
 		title_label = QLabel("Title")
 		self.title_edit = QLineEdit()
 		self.title_edit.setFont(QFont(user_settings.log_editor.font, user_settings.log_editor.font_size))
+		title_layout.addWidget(title_label)
+		title_layout.addWidget(self.title_edit)
+		self.title_container.setLayout(title_layout)
+
+		# Description field
+		self.description_container = QWidget()
+		description_layout = QVBoxLayout()
+		description_layout.setContentsMargins(0, 0, 0, 0)
+		description_label = QLabel("Description")
+		self.description_edit = QTextEdit()
+		self.description_edit.setAcceptRichText(False)
+		self.description_edit.setFixedHeight(80)
+		self.description_edit.setFont(QFont(user_settings.log_editor.font, user_settings.log_editor.font_size))
+		description_layout.addWidget(description_label)
+		description_layout.addWidget(self.description_edit)
+		self.description_container.setLayout(description_layout)
 
 		# Markdown body editor
+		self.body_container = QWidget()
+		body_layout = QVBoxLayout()
+		body_layout.setContentsMargins(0, 0, 0, 0)
 		body_label = QLabel("Body (Markdown)")
 		self.body_edit = QTextEdit()
 		self.body_edit.setAcceptRichText(False)
 		self.body_edit.setFont(QFont(user_settings.log_editor.font, user_settings.log_editor.font_size))
+		body_layout.addWidget(body_label)
+		body_layout.addWidget(self.body_edit)
+		self.body_container.setLayout(body_layout)
 
 		# Action buttons and status label
 		actions_layout = QHBoxLayout()
@@ -76,15 +101,16 @@ class LogEditorWindow(QMainWindow):
 		actions_layout.addWidget(self.status_label)
 		actions_layout.addStretch(1)
 		self.btn_save = QPushButton("Save")
+		self.btn_save.setToolTip("Save log (Ctrl+S)")
 		self.btn_cancel = QPushButton("Close")
+		self.btn_cancel.setToolTip("Close editor (Ctrl+W)")
 		actions_layout.addWidget(self.btn_save)
 		actions_layout.addWidget(self.btn_cancel)
 
 		# Assemble layout
-		root_layout.addWidget(title_label)
-		root_layout.addWidget(self.title_edit)
-		root_layout.addWidget(body_label)
-		root_layout.addWidget(self.body_edit, 1)
+		root_layout.addWidget(self.title_container)
+		root_layout.addWidget(self.description_container)
+		root_layout.addWidget(self.body_container, 1)
 		root_layout.addLayout(actions_layout)
 
 		central.setLayout(root_layout)
@@ -94,20 +120,28 @@ class LogEditorWindow(QMainWindow):
 		self.btn_save.clicked.connect(self.save_log)
 		self.btn_cancel.clicked.connect(self.close)
 		self.title_edit.textChanged.connect(self._mark_dirty)
+		self.description_edit.textChanged.connect(self._mark_dirty)
 		self.body_edit.textChanged.connect(self._mark_dirty)
+
+		# View mode: 0 = all, 1 = title+body, 2 = body only
+		self._view_mode = 0
+
+		# Set view mode from global settings
+		self._set_view_mode(user_settings.log_editor.default_view_mode)
 
 		self._create_menu_bar()
 		self._create_shortcuts()
 		self._update_window_modified()
 
 	def _init_auto_save(self) -> None:
-		"""Initialize auto-save timer based on global settings interval."""
+		"""Initialize auto-save timer based on global settings interval (seconds)."""
 		from DataClasses.settings import user_settings
 
-		interval_minutes = user_settings.preferences.autosave_interval
-		if interval_minutes and interval_minutes > 0:
+		interval_seconds = user_settings.preferences.autosave_interval
+		if interval_seconds and interval_seconds > 0:
 			self._auto_save_timer = QTimer(self)
-			self._auto_save_timer.setInterval(int(interval_minutes * 60_000))
+			# QTimer interval is in milliseconds
+			self._auto_save_timer.setInterval(int(interval_seconds * 1000))
 			self._auto_save_timer.timeout.connect(self._auto_save_if_dirty)
 			self._auto_save_timer.start()
 
@@ -115,6 +149,8 @@ class LogEditorWindow(QMainWindow):
 	def _populate_from_log(self) -> None:
 		"""Fill widgets from the current Log instance."""
 		self.title_edit.setText(self.log.name)
+		# Some logs may not yet have a description attribute
+		self.description_edit.setPlainText(getattr(self.log, "description", ""))
 		self.body_edit.setPlainText(self.log.body)
 		self._dirty = False
 		self._update_window_modified()
@@ -122,6 +158,8 @@ class LogEditorWindow(QMainWindow):
 	def _update_log_from_widgets(self) -> None:
 		"""Copy data from widgets back into the Log instance."""
 		self.log.name = self.title_edit.text()
+		# Keep description optional for backward compatibility
+		setattr(self.log, "description", self.description_edit.toPlainText())
 		self.log.body = self.body_edit.toPlainText()
 		self.log.add_revision()
 		self._dirty = False
@@ -164,6 +202,14 @@ class LogEditorWindow(QMainWindow):
 			self.log.save()
 		except Exception:
 			return
+		
+		# Update homescreen if applicable
+		if self.homescreen is not None:
+			try:
+				self.homescreen._on_log_saved(self.log)
+			except Exception:
+				pass
+			
 		self._show_status("Auto-saved")
 
 	def _mark_dirty(self) -> None:
@@ -173,6 +219,17 @@ class LogEditorWindow(QMainWindow):
 
 	def _update_window_modified(self) -> None:
 		self.setWindowModified(self._dirty)
+		self._update_window_title()
+
+	def _update_window_title(self) -> None:
+		"""Optionally reflect view mode in the window title (non-invasive)."""
+		mode_suffix = ""
+		if self._view_mode == 1:
+			mode_suffix = " [Title+Body]"
+		elif self._view_mode == 2:
+			mode_suffix = " [Body Only]"
+		base_title = "NBJournal - Log Editor" + ("*" if self._dirty else "")
+		self.setWindowTitle(base_title + mode_suffix)
 
 	def _show_status(self, text: str, duration_ms: int = 2000) -> None:
 		"""Show a small transient text label indicating save status."""
@@ -225,7 +282,13 @@ class LogEditorWindow(QMainWindow):
 		QShortcut(QKeySequence("Ctrl+Shift+M"), self, activated=self._open_tag_manager)
 		QShortcut(QKeySequence("Ctrl+Shift+E"), self, activated=self._open_tag_editor)
 
+		# Cycle view modes (Ctrl+Shift+V)
+		QShortcut(QKeySequence("Ctrl+Shift+V"), self, activated=self._cycle_view_mode)
 
+		# Set view modes
+		QShortcut(QKeySequence("Ctrl+Shift+A"), self, activated=lambda: self._set_view_mode(0))
+		QShortcut(QKeySequence("Ctrl+Shift+S"), self, activated=lambda: self._set_view_mode(1))
+		QShortcut(QKeySequence("Ctrl+Shift+D"), self, activated=lambda: self._set_view_mode(2))
 
 	def closeEvent(self, event):  # type: ignore[override]
 		"""Prompt to save if there are unsaved changes before closing."""
@@ -341,6 +404,24 @@ class LogEditorWindow(QMainWindow):
 		if self.homescreen is not None:
 			self.settings_action.triggered.connect(self.homescreen.open_settings)
 		viewMenu.addAction(self.settings_action)
+
+		# Layout submenu for mode switching
+		layoutMenu = menuBar.addMenu("Layout")
+		self.cycle_view_action = QAction("Cycle View Modes (Ctrl+Shift+V)", self)
+		self.cycle_view_action.triggered.connect(self._cycle_view_mode)
+		layoutMenu.addAction(self.cycle_view_action)
+
+		self.title_desc_body_action = QAction("Title+Description+Body (ctrl+Shift+A)", self)
+		layoutMenu.addAction(self.title_desc_body_action)
+		self.title_desc_body_action.triggered.connect(lambda: self._set_view_mode(0))
+
+		self.title_body_action = QAction("Title+Body (ctrl+Shift+S)", self)
+		layoutMenu.addAction(self.title_body_action)
+		self.title_body_action.triggered.connect(lambda: self._set_view_mode(1))
+
+		self.body_only_action = QAction("Body Only (ctrl+Shift+D)", self)
+		layoutMenu.addAction(self.body_only_action)
+		self.body_only_action.triggered.connect(lambda: self._set_view_mode(2))
 
 		# Help menu
 		helpMenu = menuBar.addMenu("Help")
@@ -654,3 +735,38 @@ GOOD HABITS
 		if not path:
 			return
 		self._insert_text_at_cursor(f"[{os.path.basename(path)}]({path.replace(' ', '%20')})", 3)
+
+	def _set_view_mode(self, mode: int) -> None:
+		"""Set the view mode to the specified value and apply it."""
+		if mode not in (0, 1, 2):
+			return
+		self._view_mode = mode
+		self._apply_view_mode()
+
+	def _apply_view_mode(self) -> None:
+		"""Apply current view mode to title/description/body containers.
+
+		Modes:
+		- 0: title, description, and body visible
+		- 1: title and body visible (description hidden)
+		- 2: body only visible
+		"""
+		if self._view_mode == 0:
+			self.title_container.setVisible(True)
+			self.description_container.setVisible(True)
+			self.body_container.setVisible(True)
+		elif self._view_mode == 1:
+			self.title_container.setVisible(True)
+			self.description_container.setVisible(False)
+			self.body_container.setVisible(True)
+		else:  # 2
+			self.title_container.setVisible(False)
+			self.description_container.setVisible(False)
+			self.body_container.setVisible(True)
+
+		self._update_window_title()
+
+	def _cycle_view_mode(self) -> None:
+		"""Cycle between 3 view modes for clutter reduction."""
+		self._view_mode = (self._view_mode + 1) % 3
+		self._apply_view_mode()

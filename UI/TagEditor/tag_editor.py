@@ -4,7 +4,7 @@ from enum import Enum, auto
 from typing import Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -56,6 +56,9 @@ class TagEditorWindow(QMainWindow):
         self._populate_list()
         self._apply_state()
 
+        # Shortcuts
+        self._create_shortcuts()
+
     # --- UI setup -------------------------------------------------
     def _init_ui(self) -> None:
         central = QWidget(self)
@@ -73,7 +76,9 @@ class TagEditorWindow(QMainWindow):
 
         btn_row = QHBoxLayout()
         self.btn_new = QPushButton("New")
+        self.btn_new.setToolTip("Create new tag (Ctrl+N)")
         self.btn_delete = QPushButton("Delete")
+        self.btn_delete.setToolTip("Delete selected tag (Del / Ctrl+D / Backspace)")
         btn_row.addWidget(self.btn_new)
         btn_row.addWidget(self.btn_delete)
 
@@ -99,10 +104,15 @@ class TagEditorWindow(QMainWindow):
 
         actions_row = QHBoxLayout()
         self.btn_save = QPushButton("Save")
+        self.btn_save.setToolTip("Save tag (Ctrl+S)")
         self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setToolTip("Cancel edit (Esc)")
+        self.btn_close = QPushButton("Close")
+        self.btn_close.setToolTip("Close window (Ctrl+W)")
         actions_row.addStretch(1)
         actions_row.addWidget(self.btn_save)
         actions_row.addWidget(self.btn_cancel)
+        actions_row.addWidget(self.btn_close)
 
         right_layout.addWidget(self.mode_label)
         right_layout.addWidget(name_label)
@@ -122,6 +132,30 @@ class TagEditorWindow(QMainWindow):
         self.btn_delete.clicked.connect(self._delete_current_tag)
         self.btn_save.clicked.connect(self._save_current)
         self.btn_cancel.clicked.connect(self._cancel_edit)
+        self.btn_close.clicked.connect(self.close)
+
+    def _create_shortcuts(self) -> None:
+        # New tag (Ctrl+N)  
+        QShortcut(QKeySequence("Ctrl+N"), self, activated=self._begin_create)
+
+        # Save (Ctrl+S)
+        QShortcut(QKeySequence("Ctrl+S"), self, activated=self._save_current)
+
+        # Cancel edit (Esc)
+        QShortcut(QKeySequence(Qt.Key.Key_Escape), self, activated=self._cancel_edit)
+
+        # Delete tag (Del, Ctrl+D, backspace)
+        QShortcut(QKeySequence(Qt.Key.Key_Delete), self, activated=self._delete_current_tag)
+        QShortcut(QKeySequence("Ctrl+D"), self, activated=self._delete_current_tag)
+        QShortcut(QKeySequence(Qt.Key.Key_Backspace), self, activated=self._delete_current_tag)
+
+        # Close window (Ctrl+W)
+        QShortcut(QKeySequence("Ctrl+W"), self, activated=self.close)
+
+        # Edit tag (Enter/space)
+        QShortcut(QKeySequence("Enter"), self, activated=lambda: self._on_item_double_clicked(self._current_item()) if self._current_item() else None)
+        QShortcut(QKeySequence("Return"), self, activated=lambda: self._on_item_double_clicked(self._current_item()) if self._current_item() else None)
+        QShortcut(QKeySequence("Space"), self, activated=lambda: self._on_item_double_clicked(self._current_item()) if self._current_item() else None)
 
     # --- State handling -------------------------------------------
     def _set_state(self, state: EditorState) -> None:
@@ -313,14 +347,14 @@ class TagEditorWindow(QMainWindow):
                 if changed:
                     log.tags = new_tags
                     try:
-                        log.save()
+                        log.save()  
                     except Exception:
                         # If a log fails to save, continue with others
                         continue
 
             # Refresh list item text/binding
             item = self._current_item()
-            if item is not None:
+            if item is not None:    
                 item.setText(updated.name)
                 item.setData(Qt.ItemDataRole.UserRole, updated)
 

@@ -9,10 +9,12 @@ from PyQt6.QtWidgets import (
 	QHBoxLayout,
 	QLabel,
 	QListWidget,
-	QListWidgetItem,
-	QPushButton,
+    QListWidgetItem,
+    QPushButton,
+
 )
 
+from PyQt6.QtGui import QKeySequence, QShortcut
 from DataClasses.tag import Tag, tags as global_tags
 from DataClasses.log import Log
 
@@ -51,6 +53,7 @@ class TagManagerWindow(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch(1)
         self.btn_close = QPushButton("Close")
+        self.btn_close.setToolTip("Close window (Ctrl+W)")
         btn_layout.addWidget(self.btn_close)
         root.addLayout(btn_layout)
 
@@ -60,6 +63,9 @@ class TagManagerWindow(QDialog):
 
         self.list_widget.itemChanged.connect(self._on_item_changed)
         self.btn_close.clicked.connect(self.close)
+
+        # Shortcuts
+        QShortcut(QKeySequence("Ctrl+W"), self, activated=self.close)
 
     def _load_tags_into_list(self, tags: Iterable[Tag]) -> None:
         self.list_widget.clear()
@@ -93,3 +99,16 @@ class TagManagerWindow(QDialog):
 
         tag_manager_state.active_tag_manager = None
         super().closeEvent(event)
+
+    def reject(self) -> None:  # type: ignore[override]
+        """Ensure ESC-key/Cancel also clears the active TagManager state.
+
+        QDialog.reject() is called when the user presses ESC or triggers a
+        standard rejection action. Overriding it here guarantees the
+        module-level `active_tag_manager` is reset even if closeEvent isn't
+        directly invoked.
+        """
+        from UI.TagManager import state as tag_manager_state
+
+        tag_manager_state.active_tag_manager = None
+        return super().reject()
