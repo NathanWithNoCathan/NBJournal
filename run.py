@@ -6,19 +6,12 @@ import DataClasses.log as log  # type: ignore[import]
 import DataClasses.tag as tag
 from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
 
-# Global reference to app
-app = None
-
-
 def main():
     """Main entry point for the application."""
     from PyQt6.QtWidgets import QApplication
     from PyQt6.QtGui import QPalette, QColor
     import sys
 
-    print(settings.user_settings)  # Example usage of settings
-
-    global app
     app = QApplication(sys.argv)
 
     # Use Fusion style (works well with custom palettes)

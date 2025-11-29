@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
     QMessageBox,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFontDatabase, QFont
+from UI.Homescreen.state import active_homescreen
 import DataClasses.settings as settings
 
 
@@ -39,6 +41,18 @@ class SettingsWindow(QDialog):
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
 
+        # Small note about tooltips
+        note_label = QLabel("Hover over settings with * for more info.")
+        note_label.setStyleSheet("font-size: 8pt")
+        note_label.setWordWrap(True)
+        scroll_layout.addWidget(note_label)
+
+        # Note about restart-required settings
+        restart_note = QLabel("Settings marked with ! require application restart to take effect.")
+        restart_note.setStyleSheet("font-size: 8pt")
+        restart_note.setWordWrap(True)
+        scroll_layout.addWidget(restart_note)
+
         self._build_groups(scroll_layout)
 
         scroll.setWidget(scroll_content)
@@ -61,7 +75,7 @@ class SettingsWindow(QDialog):
         us = settings.user_settings
 
         # Iterate over top-level groups (appearance, preferences, etc.)
-        for group_name in ("appearance", "preferences", "ai_settings", "color_palette"):
+        for group_name in ("log_viewer", "log_editor", "preferences", "ai_settings", "color_palette"):
             group_obj = getattr(us, group_name, None)
             if group_obj is None:
                 continue
@@ -74,8 +88,38 @@ class SettingsWindow(QDialog):
                 value = getattr(group_obj, field_name)
                 widget = self._make_widget_for_value(field_name, value)
                 self._widgets[(group_name, field_name)] = widget
-                label = snake_to_title(field_name)
-                form.addRow(QLabel(label), widget)
+
+                label_text = snake_to_title(field_name)
+                label_widget = QLabel(label_text)
+
+                # Look for optional tooltip in dataclass field metadata
+                tooltip = field_def.metadata.get("tooltip") if getattr(field_def, "metadata", None) else None
+                if tooltip:
+                    # Subtle visual cue that this label has more info.
+                    # We avoid changing colors (they're palette-driven) and
+                    # just append a small asterisk.
+                    label_text += "*"
+                    label_widget.setToolTip(tooltip)
+                    widget.setToolTip(tooltip)
+
+                # Check if this field requires app restart
+                requires_restart = field_def.metadata.get("requires_restart") if getattr(field_def, "metadata", None) else False
+                if requires_restart:
+                    # Subtle visual cue that this label requires restart.
+                    label_text += "!"
+
+                label_widget.setText(f"{label_text}")
+                
+                # If there's a click action, connect it
+                click_action = field_def.metadata.get("click") if getattr(field_def, "metadata", None) else None
+                if click_action:
+                    def make_handler(action):
+                        def handler():
+                            action()
+                        return handler
+                    label_widget.mousePressEvent = lambda event, act=click_action: make_handler(act)()
+
+                form.addRow(label_widget, widget)
 
             parent_layout.addWidget(group_box)
 

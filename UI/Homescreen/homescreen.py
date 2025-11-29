@@ -21,10 +21,16 @@ from UI.Homescreen.logs_viewer import LogsViewer
 import random
 import DataClasses.settings as settings
 
-
 class HomeScreen(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # Register this instance as the globally-active homescreen
+        # so other UI modules can reference it without importing
+        # this file at module-import time.
+        from UI.Homescreen import state
+        state.active_homescreen = self
+
         self.setWindowTitle("NBJournal - Home")
         self.resize(800, 600)
 
@@ -178,6 +184,34 @@ class HomeScreen(QMainWindow):
         self.credits_action.triggered.connect(self.show_credits)
         viewMenu.addAction(self.credits_action)
 
+        # Help menu
+        helpMenu = menuBar.addMenu("Help")
+
+        self.search_help_action = QAction("Searching", self)
+        self.search_help_action.triggered.connect(self._open_search_help)
+        helpMenu.addAction(self.search_help_action)
+
+
+    def _open_search_help(self):
+        """Show a message box with help on searching logs."""
+        QMessageBox.information(
+            self,
+            "Search Help",
+            "To search logs, type keywords into the search bar above the logs list.\n\n"
+            "The search will filter logs by title or description in real-time as you type.\n\n"
+            "You can use multiple keywords separated by spaces to narrow down results.\n\n"
+            "Special search commands:\n"
+            "  sort:asc OR sort:reverse - Sort logs in ascending order.\n"
+            "  sort:desc OR sort:forward - Sort logs in descending order (default).\n"
+            "  sort:created - Sort logs by creation date.\n"
+            "  sort:alphabetical - Sort logs alphabetically by title.\n"
+            "  sort:modified - Sort logs by last modified date (default).\n"
+            "  tag:<tagname> - Filter logs by specific tag.\n"
+            "  body:<keyword> - Search within log body text.\n\n"
+            "Example: sort:asc tag:work project\n\n"
+            "This would show logs tagged with 'work' and containing 'project' in the title or description, sorted in ascending order."
+        )
+
     def _new_log(self):
         """Create a new Log and open it in the Log Editor."""
         from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
@@ -185,8 +219,20 @@ class HomeScreen(QMainWindow):
         import os
         import uuid
 
+        # Do not allow multiple log editor windows at once.
+        from UI.LogEditor import state as log_editor_state
+        if log_editor_state.active_log_editor is not None:
+            QMessageBox.information(
+                self,
+                "Log Editor Already Open",
+                "You already have a log editor open. Please close it "
+                "before opening another.",
+            )
+            return
+
         # Randomly generate a new log path that does not overwrite
         # an existing file in the `logs` directory.
+        # This weird path logic goes up three levels from this file due to the project structure.
         logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), LOGS_FOLDER)
         os.makedirs(logs_dir, exist_ok=True)
 
@@ -209,6 +255,17 @@ class HomeScreen(QMainWindow):
     def _edit_log(self):
         """Open the currently selected log in the Log Editor."""
         from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
+
+        # Do not allow multiple log editor windows at once.
+        from UI.LogEditor import state as log_editor_state
+        if log_editor_state.active_log_editor is not None:
+            QMessageBox.information(
+                self,
+                "Log Editor Already Open",
+                "You already have a log editor open. Please close it "
+                "before opening another.",
+            )
+            return
 
         if self.current_log is None:
             QMessageBox.warning(self, "No Log Selected", "Please select a log to edit.")
