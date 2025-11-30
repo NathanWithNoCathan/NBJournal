@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QHBoxLayout,
     QMenu,
-    QProgressDialog
+    QProgressDialog,
 )
 
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
@@ -34,20 +34,19 @@ class BackgroundWorker(QObject):
     error = pyqtSignal(str)
     cancelled = pyqtSignal()
 
-    def __init__(self, func, *args, **kwargs):
+    def __init__(self, func, *args, uncancelable: bool = False, **kwargs):
         super().__init__()
         self._func = func
         self._args = args
         self._kwargs = kwargs
+        self._uncancelable = uncancelable
 
     def run(self):
         try:
-            # Propagate a "cancelled" result via a custom exception type
-            # if the worker function decides to abort early.
+            # For uncancelable tasks we just always run the function; any
+            # early return must be handled inside the function itself.
             result = self._func(*self._args, **self._kwargs)
-            # If the function explicitly returns the string "cancelled",
-            # treat it as a cancellation instead of success.
-            if result == "cancelled":
+            if not self._uncancelable and result == "cancelled":
                 self.cancelled.emit()
             else:
                 self.finished.emit()
@@ -55,6 +54,8 @@ class BackgroundWorker(QObject):
             self.error.emit(str(exc))
 
 class HomeScreen(QMainWindow):
+    summary_ready = pyqtSignal(str, int)
+
     def __init__(self):
         super().__init__()
 
@@ -155,6 +156,9 @@ class HomeScreen(QMainWindow):
         self._background_thread = None
         self._background_worker = None
         self._background_cancelled = False
+
+        # Connect summary signal to UI handler (runs in main thread)
+        self.summary_ready.connect(self._show_summary_dialog)
 
         # Currently selected log exposed from the logs viewer
         self.current_log = self.logs_viewer.current_log
@@ -408,7 +412,7 @@ class HomeScreen(QMainWindow):
         # For now, treat cancellation as simply ending the task UI-wise.
         self._finish_background_task()
 
-    def _start_background_task(self, title: str, label: str, func=None, *args, **kwargs) -> None:
+    def _start_background_task(self, title: str, label: str, func=None, uncancelable: bool = False, **kwargs) -> None:
         """Mark the beginning of a background task and show progress.
 
         If `func` is provided, it is executed in a separate `QThread`
@@ -426,9 +430,20 @@ class HomeScreen(QMainWindow):
         dlg.setAutoReset(False)
         dlg.setValue(0)
 
-        # Wire the cancel button to set a cancellation flag that worker
-        # functions can inspect to exit early.
-        dlg.canceled.connect(self._on_background_cancel_pressed)
+        # Wire the cancel button. For uncancelable tasks we keep the work
+        # running but notify the user that cancellation is not possible.
+        if uncancelable:
+            def _inform_uncancelable() -> None:
+                QMessageBox.information(
+                    self,
+                    "Task Cannot Be Cancelled",
+                    "This summarization task cannot be cancelled and will "
+                    "continue running to completion in the background.",
+                )
+
+            dlg.canceled.connect(_inform_uncancelable)
+        else:
+            dlg.canceled.connect(self._on_background_cancel_pressed)
 
         # If you later wire real async work, you can connect cancel here.
         self._background_progress_dialog = dlg
@@ -441,7 +456,7 @@ class HomeScreen(QMainWindow):
         if func is not None:
             # Create worker and thread for the long-running function
             self._background_thread = QThread(self)
-            self._background_worker = BackgroundWorker(func, *args, **kwargs)
+            self._background_worker = BackgroundWorker(func, uncancelable=uncancelable, **kwargs)
             self._background_worker.moveToThread(self._background_thread)
 
             # Wire signals
@@ -701,18 +716,61 @@ class HomeScreen(QMainWindow):
             ignore_already_tagged=True,
         )
 
+    def _summarize_log_worker(self, log: Log | list[Log], custom_prompt: str | None = None):
+        """Worker function to summarize log(s).
+
+        Runs in a background thread; emits `summary_ready` with the
+        resulting markdown so the UI thread can display it.
+        """
+        from AIFeatures.log_summarization import summarize_logs
+
+        if isinstance(log, list):
+            logs = log
+        else:
+            logs = [log]
+
+        result = summarize_logs(logs, prompt=custom_prompt)
+
+        # Emit signal; the connected slot will show the dialog on the UI thread.
+        self.summary_ready.emit(result, len(logs))
+
+    def _show_summary_dialog(self, markdown_text: str, log_count: int) -> None:
+        """Show the markdown summary result in a dialog (UI thread)."""
+        from UI.Homescreen.markdown_dialog import MarkdownDialog
+
+        dialog_title = "Log Summary" if log_count == 1 else "Logs Summary"
+        dlg = MarkdownDialog(dialog_title, markdown_text, parent=self)
+        dlg.exec()
+
     # === AI Features: Content Summarization ===
 
     def _summarize_current_log(self):
         """Start background task: summarize the current log content."""
+        from AIFeatures.openai_prompter import content_summarization_enabled
+        if not content_summarization_enabled():
+            QMessageBox.information(
+                self,
+                "Content Summarization Disabled",
+                "The content summarization feature is disabled in settings, or AI features are disabled in general. "
+                "Please enable it to use this feature.",
+            )
+            return
+
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to summarize.")
+            return
+
         if not self._can_start_background_task():
             return
 
         self._start_background_task(
             title="Summarizing Log",
             label="Summarizing the current log...",
+            uncancelable=True,
+            func=self._summarize_log_worker,
+            log=self.current_log,
+            custom_prompt=None,
         )
-        self._finish_background_task()
 
     def _summarize_all_shown_logs(self):
         """Start background task: summarize all shown logs."""
@@ -722,30 +780,63 @@ class HomeScreen(QMainWindow):
         self._start_background_task(
             title="Summarizing Logs",
             label="Summarizing all shown logs...",
+            func=self._summarize_log_worker,
+            log=self.logs_viewer._filtered_logs,
+            custom_prompt=None,
+            uncancelable=True,
         )
-        self._finish_background_task()
 
     def _summarize_current_log_with_custom_prompt(self):
         """Start background task: summarize current log with custom prompt."""
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to summarize.")
+            return
+
         if not self._can_start_background_task():
+            return
+
+        from PyQt6.QtWidgets import QInputDialog
+
+        prompt, ok = QInputDialog.getText(
+            self,
+            "Custom Summary Prompt",
+            "Enter a custom prompt to guide the summary:",
+        )
+        if not ok:
             return
 
         self._start_background_task(
             title="Summarizing Log",
             label="Summarizing the current log with your custom prompt...",
+            func=self._summarize_log_worker,
+            log=self.current_log,
+            custom_prompt=prompt or None,
+            uncancelable=True,
         )
-        self._finish_background_task()
 
     def _summarize_all_shown_logs_with_custom_prompt(self):
         """Start background task: summarize all shown logs with custom prompt."""
         if not self._can_start_background_task():
             return
 
+        from PyQt6.QtWidgets import QInputDialog
+
+        prompt, ok = QInputDialog.getText(
+            self,
+            "Custom Summary Prompt",
+            "Enter a custom prompt to guide the summary:",
+        )
+        if not ok:
+            return
+
         self._start_background_task(
             title="Summarizing Logs",
             label="Summarizing all shown logs with your custom prompt...",
+            func=self._summarize_log_worker,
+            log=self.logs_viewer._filtered_logs,
+            custom_prompt=prompt or None,
+            uncancelable=True,
         )
-        self._finish_background_task()
 
     def _open_tag_editor(self):
         """Open the Tag Editor window."""

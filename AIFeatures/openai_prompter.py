@@ -9,15 +9,15 @@ if user_settings.ai_settings.enabled and user_settings.ai_settings.api_key:
 
 def sentiment_analysis_enabled() -> bool:
     """Check if sentiment analysis feature is enabled."""
-    return user_settings.ai_settings.sentiment_analysis and user_settings.ai_settings.enabled
+    return user_settings.ai_settings.sentiment_analysis and user_settings.ai_settings.enabled and openai_client is not None
 
 def tag_recommendations_enabled() -> bool:
     """Check if tag recommendations feature is enabled."""
-    return user_settings.ai_settings.tag_recommendations and user_settings.ai_settings.enabled
+    return user_settings.ai_settings.tag_recommendations and user_settings.ai_settings.enabled and openai_client is not None
 
 def content_summarization_enabled() -> bool:
     """Check if content summarization feature is enabled."""
-    return user_settings.ai_settings.content_summarization and user_settings.ai_settings.enabled
+    return user_settings.ai_settings.content_summarization and user_settings.ai_settings.enabled and openai_client is not None
 
 def send_prompt_to_openai(system: str, prompt: str, model: str = "gpt-5.1", *, json_mode: bool | None = None) -> dict:
     """Send a prompt to OpenAI and return the response.
