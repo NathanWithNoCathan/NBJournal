@@ -148,6 +148,7 @@ class LogsViewer(QWidget):
 			# Queries are either just words to match the title/description
 			# Or key:value pairs to match specific fields, e.g. "tag:work"
 			# key:value pairs can be written as key:"value with quotes to include spaces"
+			# Search terms that start with ! are negated (e.g., !tag:personal)
 
 			queries = []
 			current = ""
@@ -194,22 +195,34 @@ class LogsViewer(QWidget):
 			# Filtering
 			def matches(log: Log) -> bool:
 				for q in queries:
+					negate = False
+					if q.startswith("!"):
+						negate = True
+						q = q[1:]
+					
 					if ":" in q:
 						# key:value pair
 						key, value = q.split(":", 1)
+						
 						value = value.strip('"')
 						if key == "tag":
-							if not any(t.name.lower() == value for t in log.tags):
+							if not any(t.name.lower() == value for t in log.tags) and not negate:
+								return False
+							elif any(t.name.lower() == value for t in log.tags) and negate:
 								return False
 						if key == "body":
-							if value not in (log.body or "").lower():
+							if value not in (log.body or "").lower() and not negate:
+								return False
+							elif value in (log.body or "").lower() and negate:
 								return False
 						else:
 							# Unknown key; ignore
 							return False
 					else:
 						# simple word match in title or description
-						if q not in (log.name or "").lower() and q not in (log.description or "").lower():
+						if q not in (log.name or "").lower() and q not in (log.description or "").lower() and not negate:
+							return False
+						elif (q in (log.name or "").lower() or q in (log.description or "").lower()) and negate:
 							return False
 				return True
 			

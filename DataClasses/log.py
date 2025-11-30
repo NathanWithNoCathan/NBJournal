@@ -23,9 +23,6 @@ class Log:
     # Path under which the log is stored (within LOGS_FOLDER)
     path: str
 
-    # Optional thumbnail (e.g., file path or URL)
-    thumbnail: Optional[str] = None
-
     # Tagging system
     tags: list[tag] = field(default_factory=list)
 

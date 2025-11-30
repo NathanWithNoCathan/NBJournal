@@ -313,7 +313,8 @@ class HomeScreen(QMainWindow):
             "  sort:alphabetical - Sort logs alphabetically by title.\n"
             "  sort:modified - Sort logs by last modified date (default).\n"
             "  tag:<tagname> - Filter logs by specific tag.\n"
-            "  body:<keyword> - Search within log body text.\n\n"
+            "  body:<keyword> - Search within log body text.\n"
+            "  ! before a term negates the filter, e.g. !tag:personal excludes logs with the 'personal' tag or !name excludes logs with \"name\" in the title or description.\n\n"
             "Example: sort:asc tag:work project\n\n"
             "This would show logs tagged with 'work' and containing 'project' in the title or description, sorted in ascending order."
         ))
