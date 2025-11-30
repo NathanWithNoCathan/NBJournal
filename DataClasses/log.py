@@ -102,6 +102,51 @@ class Log:
         if os.path.exists(file_path):
             os.remove(file_path)
 
+    # --- Sentiment analysis helpers ---
+
+    def _analysis_file_path(self) -> str:
+        """Return the expected path to this log's sentiment analysis JSON.
+
+        This mirrors the convention used by the sentiment analysis
+        feature: same directory and filename as the log, but with
+        "_analysis" inserted before the extension.
+        """
+
+        base_log_path = os.path.join(LOGS_FOLDER, self.path)
+        root, ext = os.path.splitext(base_log_path)
+        if not ext:
+            ext = ".json"
+        return f"{root}_analysis{ext}"
+
+    def has_sentiment_analysis(self) -> bool:
+        """Return True if a sentiment analysis JSON file exists for this log."""
+
+        return os.path.exists(self._analysis_file_path())
+
+    def load_sentiment_analysis(self) -> Optional[dict]:
+        """Load this log's sentiment analysis JSON if available.
+
+        Returns the parsed JSON object, or None if no analysis file is
+        present or if it cannot be read/parsed.
+        """
+
+        path = self._analysis_file_path()
+        if not os.path.exists(path):
+            return None
+
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            print(f"Failed to read sentiment analysis file: {os.path.basename(path)}")
+            return None
+        
+    def delete_sentiment_analysis(self) -> None:
+        """Delete this log's sentiment analysis JSON file, if it exists."""
+        path = self._analysis_file_path()
+        if os.path.exists(path):
+            os.remove(path)
+
 
 def load_logs() -> list[Log]:
     """Load existing logs from the logs folder."""
@@ -113,6 +158,9 @@ def load_logs() -> list[Log]:
         f for f in os.listdir(LOGS_FOLDER)
         if os.path.isfile(os.path.join(LOGS_FOLDER, f))
     ]
+
+    # Analysis files are stored alongside logs; skip them
+    log_files = [f for f in log_files if not f.endswith("_analysis.json")]
 
     log_list: list[Log] = []
     for file in log_files:

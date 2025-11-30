@@ -311,8 +311,16 @@ class LogEditorWindow(QMainWindow):
 				if self._dirty:
 					event.ignore()
 					return
+				
 		# Clear global reference when the window is actually closing.
 		log_editor_state.active_log_editor = None
+
+		# Auto save timer cleanup
+		if self._auto_save_timer is not None:
+			self._auto_save_timer.stop()
+			self._auto_save_timer.deleteLater()
+			self._auto_save_timer = None
+
 		event.accept()
 
 	def _create_menu_bar(self):
@@ -362,6 +370,8 @@ class LogEditorWindow(QMainWindow):
 		self.code_block_action.triggered.connect(lambda: self._insert_text_at_cursor("```\n\n```", 4))
 		insertMenu.addAction(self.code_block_action)
 
+		insertMenu.addSeparator()
+
 		self.bullet_list_action = QAction("Bullet List (ctrl+L)", self)
 		self.bullet_list_action.triggered.connect(self._insert_bullet_list)
 		insertMenu.addAction(self.bullet_list_action)
@@ -374,9 +384,13 @@ class LogEditorWindow(QMainWindow):
 		self.task_list_action.triggered.connect(self._insert_task_list)
 		insertMenu.addAction(self.task_list_action)
 
+		insertMenu.addSeparator()
+
 		self.horizontal_rule_action = QAction("Horizontal Rule (ctrl+R)", self)
 		self.horizontal_rule_action.triggered.connect(lambda: self._insert_text_at_cursor("\n---\n"))
 		insertMenu.addAction(self.horizontal_rule_action)
+
+		insertMenu.addSeparator()
 
 		self.link_action = QAction("Insert Link (ctrl+K)", self)
 		self.link_action.triggered.connect(lambda: self._insert_text_at_cursor("[]()", 3))

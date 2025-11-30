@@ -69,7 +69,7 @@ class TagEditorWindow(QMainWindow):
         # Left side: list of tags + basic actions
         left_layout = QVBoxLayout()
 
-        list_label = QLabel("Tags (double-click to edit)")
+        list_label = QLabel("Tags (double-click/enter/space to edit)")
         self.list_widget = QListWidget()
         self.list_widget.itemSelectionChanged.connect(self._on_selection_changed)
         self.list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)

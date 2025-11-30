@@ -1,7 +1,6 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QThread
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
-import sys
-
+import os
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -12,7 +11,8 @@ from PyQt6.QtWidgets import (
     QToolBar,
     QMessageBox,
     QHBoxLayout,
-    QMenu
+    QMenu,
+    QProgressDialog
 )
 
 from UI.Settings.settings import SettingsWindow  # type: ignore[import]
@@ -20,6 +20,39 @@ from UI.Homescreen.csv_loader import load_splash_texts
 from UI.Homescreen.logs_viewer import LogsViewer
 import random
 import DataClasses.settings as settings
+from DataClasses.log import Log
+
+
+class BackgroundWorker(QObject):
+    """Generic worker object for running callables in a QThread.
+
+    Emits `finished` when the function completes successfully and `error`
+    with a string message if an exception is raised.
+    """
+
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+    cancelled = pyqtSignal()
+
+    def __init__(self, func, *args, **kwargs):
+        super().__init__()
+        self._func = func
+        self._args = args
+        self._kwargs = kwargs
+
+    def run(self):
+        try:
+            # Propagate a "cancelled" result via a custom exception type
+            # if the worker function decides to abort early.
+            result = self._func(*self._args, **self._kwargs)
+            # If the function explicitly returns the string "cancelled",
+            # treat it as a cancellation instead of success.
+            if result == "cancelled":
+                self.cancelled.emit()
+            else:
+                self.finished.emit()
+        except Exception as exc:  # noqa: BLE001
+            self.error.emit(str(exc))
 
 class HomeScreen(QMainWindow):
     def __init__(self):
@@ -116,6 +149,13 @@ class HomeScreen(QMainWindow):
         # Placeholders for child windows
         self._settings_window = None
 
+        # Track whether a background AI task is currently running
+        self._background_task_running = False
+        self._background_progress_dialog = None
+        self._background_thread = None
+        self._background_worker = None
+        self._background_cancelled = False
+
         # Currently selected log exposed from the logs viewer
         self.current_log = self.logs_viewer.current_log
         self.logs_viewer.selected_log_changed.connect(self._on_selected_log_changed)
@@ -186,6 +226,60 @@ class HomeScreen(QMainWindow):
         self.tag_editor_action = QAction("Tag Editor (ctrl+T)", self)
         self.tag_editor_action.triggered.connect(self._open_tag_editor)
         fileMenu.addAction(self.tag_editor_action)
+
+        # AI Features menu (single consolidated menu with separators)
+        aiMenu = menuBar.addMenu("AI Features")
+
+        # --- Sentiment Analysis ---
+        self.sentiment_analysis_on_current_log_action = QAction("Analyze Sentiment of Current Log", self)
+        self.sentiment_analysis_on_current_log_action.triggered.connect(self._analyze_current_log_sentiment)
+        aiMenu.addAction(self.sentiment_analysis_on_current_log_action)
+
+        self.sentiment_analysis_on_all_shown_logs_action = QAction("Analyze Sentiment of All Shown Logs", self)
+        self.sentiment_analysis_on_all_shown_logs_action.triggered.connect(self._analyze_all_shown_logs_sentiment)
+        aiMenu.addAction(self.sentiment_analysis_on_all_shown_logs_action)
+
+        self.remove_sentiment_analysis_data_current_log_action = QAction("Remove Sentiment Data from Current Log", self)
+        self.remove_sentiment_analysis_data_current_log_action.triggered.connect(self._remove_sentiment_data_current_log)
+        aiMenu.addAction(self.remove_sentiment_analysis_data_current_log_action)
+
+        self.remove_sentiment_analysis_data_shown_logs_action = QAction("Remove Sentiment Data from All Shown Logs", self)
+        self.remove_sentiment_analysis_data_shown_logs_action.triggered.connect(self._remove_sentiment_data_shown_logs)
+        aiMenu.addAction(self.remove_sentiment_analysis_data_shown_logs_action)
+
+        aiMenu.addSeparator()
+
+        # --- Tag Recommendations ---
+        self.tag_recommendations_on_current_log_action = QAction("Recommend Tags for Current Log", self)
+        self.tag_recommendations_on_current_log_action.triggered.connect(self._recommend_tags_current_log)
+        aiMenu.addAction(self.tag_recommendations_on_current_log_action)
+
+        self.tag_recommendations_on_all_shown_logs_action = QAction("Recommend Tags for All Shown Logs", self)
+        self.tag_recommendations_on_all_shown_logs_action.triggered.connect(self._recommend_tags_all_shown_logs)
+        aiMenu.addAction(self.tag_recommendations_on_all_shown_logs_action)
+
+        self.tag_recommendations_on_all_shown_logs_with_no_tags_action = QAction("Recommend Tags for All Shown Logs with No Tags", self)
+        self.tag_recommendations_on_all_shown_logs_with_no_tags_action.triggered.connect(self._recommend_tags_all_shown_logs_with_no_tags)
+        aiMenu.addAction(self.tag_recommendations_on_all_shown_logs_with_no_tags_action)
+
+        aiMenu.addSeparator()
+
+        # --- Content Summarization ---
+        self.content_summarization_on_current_log_action = QAction("Summarize Current Log Content", self)
+        self.content_summarization_on_current_log_action.triggered.connect(self._summarize_current_log)
+        aiMenu.addAction(self.content_summarization_on_current_log_action)
+
+        self.content_summarization_on_all_shown_logs_action = QAction("Summarize Content of All Shown Logs", self)
+        self.content_summarization_on_all_shown_logs_action.triggered.connect(self._summarize_all_shown_logs)
+        aiMenu.addAction(self.content_summarization_on_all_shown_logs_action)
+
+        self.content_summarization_on_current_log_with_custom_prompt_action = QAction("Summarize Current Log (Custom Prompt)", self)
+        self.content_summarization_on_current_log_with_custom_prompt_action.triggered.connect(self._summarize_current_log_with_custom_prompt)
+        aiMenu.addAction(self.content_summarization_on_current_log_with_custom_prompt_action)
+
+        self.content_summarization_on_all_shown_logs_with_custom_prompt_action = QAction("Summarize All Shown Logs (Custom Prompt)", self)
+        self.content_summarization_on_all_shown_logs_with_custom_prompt_action.triggered.connect(self._summarize_all_shown_logs_with_custom_prompt)
+        aiMenu.addAction(self.content_summarization_on_all_shown_logs_with_custom_prompt_action)
 
         # View menu
         viewMenu = menuBar.addMenu("View")
@@ -259,6 +353,139 @@ class HomeScreen(QMainWindow):
         # Open tag editor (Ctrl+T)
         QShortcut(QKeySequence("Ctrl+T"), self, activated=self._open_tag_editor)  
 
+    # ------------------------------------------------------------------
+    # Background task helper
+    # ------------------------------------------------------------------
+
+    def _can_start_background_task(self) -> bool:
+        """Return True if a background task is allowed to start.
+
+        Disallows starting if a Log Editor or Tag Editor is already open
+        or if another background task is already running.
+        """
+        # Check for open Log Editor
+        from UI.LogEditor import state as log_editor_state  # type: ignore[import]
+        if log_editor_state.active_log_editor is not None:
+            QMessageBox.information(
+                self,
+                "Log Editor Open",
+                "Close the Log Editor before running AI background tasks.",
+            )
+            return False
+
+        # Check for open Tag Editor
+        from UI.TagEditor import state as tag_editor_state  # type: ignore[import]
+        if tag_editor_state.active_tag_editor is not None:
+            QMessageBox.information(
+                self,
+                "Tag Editor Open",
+                "Close the Tag Editor before running AI background tasks.",
+            )
+            return False
+
+        if self._background_task_running:
+            QMessageBox.information(
+                self,
+                "Background Task Running",
+                "Please wait for the current AI task to finish.",
+            )
+            return False
+
+        return True
+
+    def _on_background_task_finished(self) -> None:
+        """Slot called when the background worker completes successfully."""
+        # Only mark as finished if the worker actually completed.
+        self._finish_background_task()
+
+    def _on_background_task_error(self, message: str) -> None:
+        """Slot called when the background worker reports an error."""
+        self._finish_background_task()
+        QMessageBox.critical(self, "Background Task Error", message)
+
+    def _on_background_task_cancelled(self) -> None:
+        """Slot called when the background worker reports a cancellation."""
+        # For now, treat cancellation as simply ending the task UI-wise.
+        self._finish_background_task()
+
+    def _start_background_task(self, title: str, label: str, func=None, *args, **kwargs) -> None:
+        """Mark the beginning of a background task and show progress.
+
+        If `func` is provided, it is executed in a separate `QThread`
+        using `BackgroundWorker` so the UI remains responsive.
+        """
+        # Reset cancellation flag at start of each task
+        self._background_cancelled = False
+        self._background_task_running = True
+
+        dlg = QProgressDialog(label, "Cancel", 0, 0, self)
+        dlg.setWindowTitle(title)
+        dlg.setWindowModality(Qt.WindowModality.ApplicationModal)
+        dlg.setMinimumDuration(0)
+        dlg.setAutoClose(False)
+        dlg.setAutoReset(False)
+        dlg.setValue(0)
+
+        # Wire the cancel button to set a cancellation flag that worker
+        # functions can inspect to exit early.
+        dlg.canceled.connect(self._on_background_cancel_pressed)
+
+        # If you later wire real async work, you can connect cancel here.
+        self._background_progress_dialog = dlg
+        dlg.show()
+
+        # While background task is running, disable actions that must not occur
+        self.delete_log_action.setEnabled(False)
+        self.tag_editor_action.setEnabled(False)
+
+        if func is not None:
+            # Create worker and thread for the long-running function
+            self._background_thread = QThread(self)
+            self._background_worker = BackgroundWorker(func, *args, **kwargs)
+            self._background_worker.moveToThread(self._background_thread)
+
+            # Wire signals
+            self._background_thread.started.connect(self._background_worker.run)
+            self._background_worker.finished.connect(self._on_background_task_finished)
+            self._background_worker.error.connect(self._on_background_task_error)
+            self._background_worker.cancelled.connect(self._on_background_task_cancelled)
+
+            # Ensure cleanup when done
+            self._background_worker.finished.connect(self._background_thread.quit)
+            self._background_worker.error.connect(self._background_thread.quit)
+            self._background_worker.cancelled.connect(self._background_thread.quit)
+            self._background_thread.finished.connect(self._background_worker.deleteLater)
+            self._background_thread.finished.connect(self._clear_background_thread_refs)
+
+            self._background_thread.start()
+
+    def _finish_background_task(self) -> None:
+        """Clear background-task state and hide progress UI."""
+        self._background_task_running = False
+
+        if self._background_progress_dialog is not None:
+            self._background_progress_dialog.hide()
+            self._background_progress_dialog.deleteLater()
+            self._background_progress_dialog = None
+
+        # Re-enable actions once background work is done
+        self.delete_log_action.setEnabled(True)
+        self.tag_editor_action.setEnabled(True)
+
+    def _clear_background_thread_refs(self) -> None:
+        """Clear references to the background thread/worker after completion."""
+        self._background_thread = None
+        self._background_worker = None
+
+    def _on_background_cancel_pressed(self) -> None:
+        """Set a flag indicating the user has requested cancellation.
+
+        Background worker functions should periodically check
+        `self._background_cancelled` (or be passed a reference to it)
+        and stop work early when it becomes True.
+        """
+        self._background_cancelled = True
+
     def _show_log_info(self):
         """Show information about the currently selected log."""
         if self.current_log is None:
@@ -277,8 +504,259 @@ class HomeScreen(QMainWindow):
 
         QMessageBox.information(self, "Log Information", info_text)
 
+    # === AI Features: Sentiment Analysis ===
+
+    def _analyze_current_log_sentiment(self):
+        """Start background task: analyze sentiment of the current log."""
+        from AIFeatures.openai_prompter import sentiment_analysis_enabled
+        if not sentiment_analysis_enabled():
+            QMessageBox.information(
+                self,
+                "Sentiment Analysis Disabled",
+                "The sentiment analysis feature is disabled in settings, or AI features are disabled in general. "
+                "Please enable it to use this feature.",
+            )
+            return
+
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to analyze its sentiment.")
+            return
+
+        if not self._can_start_background_task():
+            return
+
+        from AIFeatures.sentiment_analysis import analyze_log_sentiment
+
+        self._start_background_task(
+            title="Analyzing Sentiment",
+            label="Analyzing sentiment of the current log...",
+            func=analyze_log_sentiment,
+            log=self.current_log,
+        )
+
+    def _batch_log_sentiment_analysis_worker(self):
+        """Worker function to analyze sentiment for all shown logs."""
+        from AIFeatures.sentiment_analysis import analyze_log_sentiment
+
+        self._background_progress_dialog.setValue(0)
+        self._background_progress_dialog.setMinimum(0)
+        self._background_progress_dialog.setMaximum(len(self.logs_viewer._filtered_logs))
+
+        shown_logs = self.logs_viewer._filtered_logs
+        for i, log in enumerate(shown_logs):
+            if self._background_cancelled:
+                return
+            analyze_log_sentiment(log)
+            self._background_progress_dialog.setValue(i + 1)
+
+    def _analyze_all_shown_logs_sentiment(self):
+        """Start background task: analyze sentiment for all shown logs."""
+        from AIFeatures.openai_prompter import sentiment_analysis_enabled
+        if not sentiment_analysis_enabled():
+            QMessageBox.information(
+                self,
+                "Sentiment Analysis Disabled",
+                "The sentiment analysis feature is disabled in settings, or AI features are disabled in general. "
+                "Please enable it to use this feature.",
+            )
+            return
+
+        if not self._can_start_background_task():
+            return
+        
+        from AIFeatures.sentiment_analysis import analyze_log_sentiment
+
+        self._start_background_task(
+            title="Analyzing Sentiment",
+            label="Analyzing sentiment of all shown logs...",
+            func=self._batch_log_sentiment_analysis_worker,
+        )
+
+    def _remove_sentiment_data_current_log(self):
+        """Remove sentiment data from current log."""
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to remove its sentiment data.")
+            return
+
+        self.current_log.delete_sentiment_analysis()
+        QMessageBox.information(
+            self,
+            "Sentiment Data Removed",
+            "Sentiment analysis data has been removed from the current log.",
+        )
+
+    def _remove_sentiment_data_shown_logs(self):
+        """Start background task: remove sentiment data from all shown logs."""
+        shown_logs = self.logs_viewer._filtered_logs
+        for log in shown_logs:
+            log.delete_sentiment_analysis()
+
+        QMessageBox.information(
+            self,
+            "Sentiment Data Removed",
+            "Sentiment analysis data has been removed from all shown logs.",
+        )
+
+    # === AI Features: Tag Recommendations ===
+
+    def _perform_tag_recommendation_worker(self, log: Log):
+        """Worker function to recommend tags for the current log."""
+        from AIFeatures.tag_recommendations import recommend_tags_for_log
+
+        try:
+            res = recommend_tags_for_log(log)
+        except Exception as e:
+            return
+
+        from DataClasses.tag import tags
+
+        log.tags.clear()
+        for tag_name in res.get("selected", []):
+            tag = next((t for t in tags if t.name == tag_name), None)
+            if tag is not None:
+                log.tags.append(tag)
+        log.save()
+
+    def _batch_log_tag_recommendation_worker(self, ignore_already_tagged: bool = False):
+        """Worker function to recommend tags for all shown logs."""
+        from AIFeatures.sentiment_analysis import analyze_log_sentiment
+
+        self._background_progress_dialog.setValue(0)
+        self._background_progress_dialog.setMinimum(0)
+        self._background_progress_dialog.setMaximum(len(self.logs_viewer._filtered_logs))
+
+        shown_logs = self.logs_viewer._filtered_logs
+        for i, log in enumerate(shown_logs):
+            if self._background_cancelled:
+                return
+            if ignore_already_tagged and log.tags:
+                self._background_progress_dialog.setValue(i + 1)
+                continue
+            self._perform_tag_recommendation_worker(log)
+            self._background_progress_dialog.setValue(i + 1)
+
+    def _recommend_tags_current_log(self):
+        """Start background task: recommend tags for the current log."""
+        from AIFeatures.openai_prompter import tag_recommendations_enabled
+        if not tag_recommendations_enabled():
+            QMessageBox.information(
+                self,
+                "Tag Recommendations Disabled",
+                "The tag recommendations feature is disabled in settings, or AI features are disabled in general. "
+                "Please enable it to use this feature.",
+            )
+            return
+
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Recommending Tags",
+            label="Recommending tags for the current log...",
+            func=self._perform_tag_recommendation_worker,
+            log=self.current_log,
+        )
+
+    def _recommend_tags_all_shown_logs(self):
+        """Start background task: recommend tags for all shown logs."""
+        from AIFeatures.openai_prompter import tag_recommendations_enabled
+        if not tag_recommendations_enabled():
+            QMessageBox.information(
+                self,
+                "Tag Recommendations Disabled",
+                "The tag recommendations feature is disabled in settings, or AI features are disabled in general. "
+                "Please enable it to use this feature.",
+            )
+            return
+        
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Recommending Tags",
+            label="Recommending tags for all shown logs...",
+            func=self._batch_log_tag_recommendation_worker,
+            ignore_already_tagged=False,
+        )
+
+    def _recommend_tags_all_shown_logs_with_no_tags(self):
+        """Start background task: recommend tags for shown logs with no tags."""
+        from AIFeatures.openai_prompter import tag_recommendations_enabled
+        if not tag_recommendations_enabled():
+            QMessageBox.information(
+                self,
+                "Tag Recommendations Disabled",
+                "The tag recommendations feature is disabled in settings, or AI features are disabled in general. "
+                "Please enable it to use this feature.",
+            )
+            return
+
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Recommending Tags",
+            label="Recommending tags for all shown logs...",
+            func=self._batch_log_tag_recommendation_worker,
+            ignore_already_tagged=True,
+        )
+
+    # === AI Features: Content Summarization ===
+
+    def _summarize_current_log(self):
+        """Start background task: summarize the current log content."""
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Summarizing Log",
+            label="Summarizing the current log...",
+        )
+        self._finish_background_task()
+
+    def _summarize_all_shown_logs(self):
+        """Start background task: summarize all shown logs."""
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Summarizing Logs",
+            label="Summarizing all shown logs...",
+        )
+        self._finish_background_task()
+
+    def _summarize_current_log_with_custom_prompt(self):
+        """Start background task: summarize current log with custom prompt."""
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Summarizing Log",
+            label="Summarizing the current log with your custom prompt...",
+        )
+        self._finish_background_task()
+
+    def _summarize_all_shown_logs_with_custom_prompt(self):
+        """Start background task: summarize all shown logs with custom prompt."""
+        if not self._can_start_background_task():
+            return
+
+        self._start_background_task(
+            title="Summarizing Logs",
+            label="Summarizing all shown logs with your custom prompt...",
+        )
+        self._finish_background_task()
+
     def _open_tag_editor(self):
         """Open the Tag Editor window."""
+        # Block opening while a background task is running
+        if self._background_task_running:
+            QMessageBox.information(
+                self,
+                "Background Task Running",
+                "Wait for the current AI task to finish before opening the Tag Editor.",
+            )
+            return
         # Prevent opening the tag editor if a tag manager is already open.
         from UI.TagManager import state as tag_manager_state  # type: ignore[import]
 
@@ -313,6 +791,15 @@ class HomeScreen(QMainWindow):
         from DataClasses.log import Log, LOGS_FOLDER
         import os
         import uuid
+
+        # Block opening while a background task is running
+        if self._background_task_running:
+            QMessageBox.information(
+                self,
+                "Background Task Running",
+                "Wait for the current AI task to finish before opening the Log Editor.",
+            )
+            return
 
         # Do not allow multiple log editor windows at once.
         from UI.LogEditor import state as log_editor_state
@@ -351,6 +838,15 @@ class HomeScreen(QMainWindow):
         """Open the currently selected log in the Log Editor."""
         from UI.LogEditor.log_editor import LogEditorWindow  # type: ignore[import]
 
+        # Block opening while a background task is running
+        if self._background_task_running:
+            QMessageBox.information(
+                self,
+                "Background Task Running",
+                "Wait for the current AI task to finish before opening the Log Editor.",
+            )
+            return
+
         # Do not allow multiple log editor windows at once.
         from UI.LogEditor import state as log_editor_state
         if log_editor_state.active_log_editor is not None:
@@ -371,6 +867,15 @@ class HomeScreen(QMainWindow):
 
     def _delete_log(self):
         """Delete the currently selected log after user confirmation."""
+        # Block delete while a background task is running
+        if self._background_task_running:
+            QMessageBox.information(
+                self,
+                "Background Task Running",
+                "Wait for the current AI task to finish before deleting logs.",
+            )
+            return
+
         if self.current_log is None:
             QMessageBox.warning(self, "No Log Selected", "Please select a log to delete.")
             return

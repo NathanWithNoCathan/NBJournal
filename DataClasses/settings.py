@@ -12,11 +12,32 @@ SETTINGS_FILE = "user_settings.json"
 
 @dataclass
 class ArtificialIntelligenceSettings:
-    enabled: bool = False
-    api_key: str = ""
-    tag_recommendations: bool = True
-    sentiment_analysis: bool = False
-    content_summarization: bool = False
+    enabled: bool = field(
+        default=False,
+        metadata={
+            "tooltip": "Enable or disable AI features in the application.",
+            "requires_restart": True,
+        }
+    )
+    api_key: str = field(
+        default="",
+        metadata={
+            "tooltip": "API key for accessing OpenAI services.",
+            "requires_restart": True,
+        }
+    )
+    tag_recommendations: bool = field(default=False, metadata={
+        "tooltip": "Enable or disable AI tag recommendations.",
+        "requires_restart": False,
+    })
+    sentiment_analysis: bool = field(default=False, metadata={
+        "tooltip": "Enable or disable AI sentiment analysis.",
+        "requires_restart": False,
+    })
+    content_summarization: bool = field(default=False, metadata={
+        "tooltip": "Enable or disable AI content summarization.",
+        "requires_restart": False,
+    })
 
 
 @dataclass
