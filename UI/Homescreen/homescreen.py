@@ -231,6 +231,24 @@ class HomeScreen(QMainWindow):
         self.tag_editor_action.triggered.connect(self._open_tag_editor)
         fileMenu.addAction(self.tag_editor_action)
 
+        self.remove_all_tags_action = QAction("Remove All Tags from Current Log", self)
+        self.remove_all_tags_action.triggered.connect(self._remove_all_tags_current_log)
+        fileMenu.addAction(self.remove_all_tags_action)
+
+        self.remove_all_tags_all_shown_logs_action = QAction("Remove All Tags from All Shown Logs", self)
+        self.remove_all_tags_all_shown_logs_action.triggered.connect(self._remove_all_tags_all_shown_logs)
+        fileMenu.addAction(self.remove_all_tags_all_shown_logs_action)
+
+        fileMenu.addSeparator()
+
+        self.encrypt_selected_log_action = QAction("Encrypt Selected Log", self)
+        self.encrypt_selected_log_action.triggered.connect(self._encrypt_selected_log)
+        fileMenu.addAction(self.encrypt_selected_log_action)
+
+        self.decrypt_selected_log_action = QAction("Decrypt Selected Log", self)
+        self.decrypt_selected_log_action.triggered.connect(self._decrypt_selected_log)
+        fileMenu.addAction(self.decrypt_selected_log_action)
+
         # AI Features menu (single consolidated menu with separators)
         aiMenu = menuBar.addMenu("AI Features")
 
@@ -335,6 +353,19 @@ class HomeScreen(QMainWindow):
         ))
         helpMenu.addAction(self.info_action)
 
+        self.encryption_decryption_help_action = QAction("Encryption Help", self)
+        self.encryption_decryption_help_action.triggered.connect(lambda: QMessageBox.information(
+            self,
+            "Encryption Help",
+            "To encrypt a log, select it from the logs list and choose 'Encrypt Selected Log' from the 'Log' menu. "
+            "You will be prompted to enter and confirm a password. Once encrypted, the log's content will be hidden "
+            "and can only be accessed by decrypting it with the correct password.\n\n"
+            "To decrypt a log, select the encrypted log and choose 'Decrypt Selected Log' from the 'Log' menu. "
+            "You will need to enter the password used during encryption to access the log's content again.\n\n"
+            "Please remember your passwords, as there is no way to recover encrypted logs without them."
+        ))
+        helpMenu.addAction(self.encryption_decryption_help_action)
+
     def _create_shortcuts(self):
         """Create keyboard shortcuts for common HomeScreen actions.
 
@@ -357,6 +388,132 @@ class HomeScreen(QMainWindow):
 
         # Open tag editor (Ctrl+T)
         QShortcut(QKeySequence("Ctrl+T"), self, activated=self._open_tag_editor)  
+
+    def _remove_all_tags_current_log(self) -> None:
+        """Remove all tags from the currently selected log."""
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to remove tags from.")
+            return
+        
+        if not self.current_log.tags:
+            QMessageBox.information(self, "No Tags", "The selected log has no tags to remove.")
+            return
+        
+        confirm = QMessageBox.question(
+            self,
+            "Confirm Remove Tags",
+            "Are you sure you want to remove all tags from the selected log?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if confirm == QMessageBox.StandardButton.Yes:
+            self.current_log.tags.clear()
+            self.current_log.save()
+            QMessageBox.information(self, "Tags Removed", "All tags have been removed from the selected log.")
+            self.logs_viewer.reload_logs()
+
+    def _remove_all_tags_all_shown_logs(self) -> None:
+        """Remove all tags from all logs currently shown in the logs viewer."""
+        shown_logs = self.logs_viewer._filtered_logs
+        if not shown_logs:
+            QMessageBox.information(self, "No Logs Shown", "There are no logs currently shown to remove tags from.")
+            return
+        
+        logs_with_tags = [log for log in shown_logs if log.tags]
+        if not logs_with_tags:
+            QMessageBox.information(self, "No Tags", "None of the shown logs have tags to remove.")
+            return
+        
+        confirm = QMessageBox.question(
+            self,
+            "Confirm Remove Tags",
+            f"Are you sure you want to remove all tags from the {len(logs_with_tags)} shown logs that have tags?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+        if confirm == QMessageBox.StandardButton.Yes:
+            for log in logs_with_tags:
+                log.tags.clear()
+                log.save()
+            QMessageBox.information(self, "Tags Removed", "All tags have been removed from the shown logs.")
+            self.logs_viewer.reload_logs()
+
+    def _encrypt_selected_log(self) -> None:
+        """Encrypt the currently selected log."""
+        # Block encryption while a log editor window is open.
+        from UI.LogEditor import state as log_editor_state  # type: ignore[import]
+        if log_editor_state.active_log_editor is not None:
+            QMessageBox.information(
+                self,
+                "Log Editor Open",
+                "Close the Log Editor before encrypting logs.",
+            )
+            return
+
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to encrypt.")
+            return
+        
+        if self.current_log.is_encrypted():
+            QMessageBox.information(self, "Log Already Encrypted", "The selected log is already encrypted.")
+            return
+        
+        # Get password from user (basic text box)
+        from PyQt6.QtWidgets import QInputDialog, QLineEdit
+
+        password, ok = QInputDialog.getText(self, "Encrypt Log", "Enter a password to encrypt the log:", QLineEdit.EchoMode.Password)
+        if not ok or not password:
+            return  # User cancelled or entered empty password
+        
+        # Ask for confirmation
+        confirm_password, ok = QInputDialog.getText(self, "Confirm Password", "Re-enter the password to confirm:", QLineEdit.EchoMode.Password)
+        if not ok or password != confirm_password:
+            QMessageBox.warning(self, "Password Mismatch", "The passwords do not match. Encryption cancelled.")
+            return
+        
+        try:
+            self.current_log.encrypt_with_password(password)
+            QMessageBox.information(self, "Log Encrypted", "The selected log has been encrypted successfully.")
+            self.logs_viewer.reload_logs()
+        except Exception as e:
+            QMessageBox.critical(self, "Encryption Error", f"An error occurred while encrypting the log: {str(e)}")
+
+    def _decrypt_selected_log(self) -> None:
+        """Decrypt the currently selected log."""
+        # Block decryption while a log editor window is open.
+        from UI.LogEditor import state as log_editor_state  # type: ignore[import]
+        if log_editor_state.active_log_editor is not None:
+            QMessageBox.information(
+                self,
+                "Log Editor Open",
+                "Close the Log Editor before decrypting logs.",
+            )
+            return
+
+        if self.current_log is None:
+            QMessageBox.warning(self, "No Log Selected", "Please select a log to decrypt.")
+            return
+        
+        if not self.current_log.is_encrypted():
+            QMessageBox.information(self, "Log Not Encrypted", "The selected log is not encrypted.")
+            return
+        
+        # Get password from user (basic text box)
+        from PyQt6.QtWidgets import QInputDialog, QLineEdit
+
+        password, ok = QInputDialog.getText(self, "Decrypt Log", "Enter the password to decrypt the log:", QLineEdit.EchoMode.Password)
+        if not ok or not password:
+            return  # User cancelled or entered empty password
+        
+        # Check if password works
+        if not self.current_log.can_decrypt_with_password(password):
+            QMessageBox.warning(self, "Incorrect Password", "The password entered is incorrect. Decryption cancelled.")
+            return
+
+        try:
+            self.current_log.decrypt_with_password(password)
+            QMessageBox.information(self, "Log Decrypted", "The selected log has been decrypted successfully.")
+            self.logs_viewer.reload_logs()
+        except Exception as e:
+            QMessageBox.critical(self, "Decryption Error", f"An error occurred while decrypting the log: {str(e)}")
 
     # ------------------------------------------------------------------
     # Background task helper
@@ -954,6 +1111,15 @@ class HomeScreen(QMainWindow):
             QMessageBox.warning(self, "No Log Selected", "Please select a log to edit.")
             return
 
+        # Disallow editing encrypted logs.
+        if self.current_log.is_encrypted():
+            QMessageBox.information(
+                self,
+                "Encrypted Log",
+                "Encrypted logs cannot be edited. Please decrypt the log first.",
+            )
+            return
+
         log_editor = LogEditorWindow(self.current_log, parent=self)
         log_editor.show()
 
@@ -970,6 +1136,15 @@ class HomeScreen(QMainWindow):
 
         if self.current_log is None:
             QMessageBox.warning(self, "No Log Selected", "Please select a log to delete.")
+            return
+
+        # Disallow deleting encrypted logs.
+        if self.current_log.is_encrypted():
+            QMessageBox.information(
+                self,
+                "Encrypted Log",
+                "Encrypted logs cannot be deleted. Please decrypt the log first.",
+            )
             return
 
         confirm = QMessageBox.question(

@@ -4,6 +4,7 @@ from typing import Optional
 from DataClasses.tag import Tag as tag
 import json
 import os
+from Helpers import encryptor
 
 
 LOGS_FOLDER = "logs"
@@ -12,6 +13,9 @@ def _datetime_to_iso(dt: datetime) -> str:
     return dt.isoformat()
 def _datetime_from_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
+
+
+_MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024 * 1024  # 5 GiB
 
 @dataclass
 class Log:
@@ -33,6 +37,14 @@ class Log:
 
     # Log format version (not content revision number)
     log_format_version: int = 1
+
+    # Encrypted payload (optional). When set, it contains the encrypted
+    # form of the original description/body so that those fields can be
+    # replaced with a neutral placeholder while the title remains
+    # visible.
+    encrypted_payload: Optional[str] = None
+
+    
 
     def add_revision(self) -> None:
         """Record a new revision timestamp and update last revised time."""
@@ -75,6 +87,99 @@ class Log:
             data["tags"] = rebuilt_tags
 
         return cls(**data)
+
+    # --- Encryption helpers ---
+
+    def is_encrypted(self) -> bool:
+        """Return True if this log currently has encrypted content."""
+        return bool(self.encrypted_payload)
+
+    def encrypt_with_password(self, password: str) -> None:
+        """Encrypt the description/body with ``password`` and save.
+
+        The title/name remains visible. After encryption, the
+        ``description`` and ``body`` fields are replaced with a neutral
+        placeholder message while the encrypted bytes are stored in
+        ``encrypted_payload`` (base64-encoded).
+        """
+
+        # If already encrypted, do nothing.
+        if self.is_encrypted():
+            return
+
+        payload = {
+            "description": self.description,
+            "body": self.body,
+            "attachments": {},
+        }
+        plaintext = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+        encrypted_b64 = encryptor.encrypt_to_base64(password, plaintext)
+        self.encrypted_payload = encrypted_b64
+
+        placeholder = "This log has been encrypted. Decrypt this log to view its contents"
+        self.description = placeholder
+        self.body = placeholder
+
+        # Persist changes immediately.
+        self.save()
+
+    def can_decrypt_with_password(self, password: str) -> bool:
+        """Return True if ``password`` matches the encrypted payload.
+
+        If the log is not encrypted, this returns False.
+        """
+
+        if not self.encrypted_payload:
+            return False
+
+        try:
+            blob = self.encrypted_payload.encode("ascii")
+        except Exception:
+            return False
+
+        try:
+            # ``encryptor`` expects base64 string for the helper below,
+            # so we just pass through the stored payload.
+            return encryptor.is_password_correct(
+                password,
+                encryptor.base64.b64decode(self.encrypted_payload.encode("ascii")),  # type: ignore[attr-defined]
+            )
+        except Exception:
+            return False
+
+    def decrypt_with_password(self, password: str) -> None:
+        """Decrypt the log with ``password`` and restore its contents.
+
+        If the password is incorrect or no encrypted payload is
+        present, a :class:`ValueError` is raised. On success, the
+        original description and body are restored and the
+        ``encrypted_payload`` field is cleared. The log is then saved
+        to disk.
+        """
+
+        if not self.encrypted_payload:
+            raise ValueError("Log is not encrypted.")
+
+        try:
+            plaintext = encryptor.decrypt_from_base64(password, self.encrypted_payload)
+        except ValueError as exc:
+            # Wrong password or tampered data
+            raise ValueError("Incorrect password or corrupted encrypted log data.") from exc
+
+        try:
+            payload = json.loads(plaintext.decode("utf-8"))
+        except Exception as exc:
+            raise ValueError("Failed to decode decrypted log payload.") from exc
+
+        self.description = payload.get("description", "")
+        self.body = payload.get("body", "")
+
+        # Attachments are no longer supported; ignore any attachment data
+        self.encrypted_payload = None
+
+        # Persist restored content.
+        self.save()
 
     def save(self) -> None:
         """Persist the log to disk as JSON."""

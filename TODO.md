@@ -12,15 +12,15 @@
     - [X] Tag adding
     - [X] Implementing markdown
     - [ ] Individual log settings (Date of log, Tags, etc.)
-    - [ ] Password Protection
-    - [ ] Embeding Media Inline
+    - [X] Password Protection
+    - [X] Embeding Media Inline
 
 - Including AI
-    - [ ] Sentiment Analysis
-    - [ ] Automatic Tags
-    - [ ] AI Summaries
+    - [X] Sentiment Analysis
+    - [X] Automatic Tags
+    - [X] AI Summaries
     - [ ] AI Topic Recommendations (?)
-    - [ ] Toggle for AI in settings
+    - [X] Toggle for AI in settings
 
 - [ ] TODO List Builder
 

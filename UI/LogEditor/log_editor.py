@@ -744,10 +744,21 @@ GOOD HABITS
 		editor.show()
 
 	def _insert_file_link(self) -> None:
-		# Should allow folders too
+		"""Insert a markdown link for either a file or a folder.
+
+		Previously this only allowed selecting files. Now it first
+		prompts for a file; if the user cancels that, it then prompts
+		for a directory. If both are cancelled, nothing is inserted.
+		"""
+		# First, try selecting a file.
 		path, _ = QFileDialog.getOpenFileName(self, "Select File")
 		if not path:
-			return
+			# If the user didn't pick a file, offer a folder instead.
+			path = QFileDialog.getExistingDirectory(self, "Select Folder")
+			if not path:
+				return
+
+		# Build a markdown link using the base name as the label.
 		self._insert_text_at_cursor(f"[{os.path.basename(path)}]({path.replace(' ', '%20')})", 3)
 
 	def _set_view_mode(self, mode: int) -> None:
